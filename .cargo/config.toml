@@ -1,0 +1,7 @@
+[env]
+# Avoid openssl-src Android cross-build failures when target-prefixed ranlib
+# binaries are missing from PATH (for example: aarch64-linux-android-ranlib).
+RANLIB_aarch64_linux_android = { value = "scripts/android-ndk-ranlib.sh", relative = true, force = true }
+RANLIB_armv7_linux_androideabi = { value = "scripts/android-ndk-ranlib.sh", relative = true, force = true }
+RANLIB_i686_linux_android = { value = "scripts/android-ndk-ranlib.sh", relative = true, force = true }
+RANLIB_x86_64_linux_android = { value = "scripts/android-ndk-ranlib.sh", relative = true, force = true }

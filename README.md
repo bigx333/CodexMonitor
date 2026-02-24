@@ -74,6 +74,18 @@ Run in dev mode:
 npm run tauri:dev
 ```
 
+## Android Build Note
+
+Android builds now auto-resolve `llvm-ranlib` via `scripts/android-ndk-ranlib.sh`
+through `.cargo/config.toml`.
+
+If your NDK is installed outside default SDK paths, set one of:
+
+- `ANDROID_NDK_HOME` (preferred)
+- `ANDROID_NDK_ROOT`
+- `NDK_HOME`
+- `ANDROID_HOME` / `ANDROID_SDK_ROOT` (with `ndk/*` installed)
+
 ## iOS Support (WIP)
 
 iOS support is currently in progress.
