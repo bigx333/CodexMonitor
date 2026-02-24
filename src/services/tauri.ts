@@ -918,6 +918,31 @@ export async function getSystemIdleSeconds(): Promise<number | null> {
   return invoke<number | null>("get_system_idle_seconds");
 }
 
+export type MobilePushRegistrationInfo = {
+  platform: "android";
+  deviceId: string;
+  token: string;
+  label?: string | null;
+};
+
+export async function getMobilePushRegistrationInfo(): Promise<MobilePushRegistrationInfo | null> {
+  return invoke<MobilePushRegistrationInfo | null>("mobile_push_registration_info");
+}
+
+export async function requestNotificationPermissionOnStart(): Promise<boolean> {
+  try {
+    const notification = await import("@tauri-apps/plugin-notification");
+    let permissionGranted = await notification.isPermissionGranted();
+    if (!permissionGranted) {
+      const permission = await notification.requestPermission();
+      permissionGranted = permission === "granted";
+    }
+    return permissionGranted;
+  } catch {
+    return false;
+  }
+}
+
 export async function updateAppSettings(settings: AppSettings): Promise<AppSettings> {
   return invoke<AppSettings>("update_app_settings", { settings });
 }

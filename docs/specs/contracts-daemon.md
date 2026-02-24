@@ -74,6 +74,12 @@ Daemon dispatch entrypoint: `src-tauri/src/bin/codex_monitor_daemon/rpc/dispatch
 - `menu_set_accelerators` `{ updates: any[] }` -> `{ ok: true }`
 - `is_macos_debug_build` -> `boolean`
 - `send_notification_fallback` `{ title, body }` -> `{ ok: true }`
+- `presence_heartbeat` `{ clientId, clientKind, platform?, isSupported, isFocused, isAfk, activeWorkspaceIds[] }` -> `{ ok: true }`
+- `push_register_device` `{ deviceId, platform, token, label? }` -> `PushDeviceRegistration`
+- `push_unregister_device` `{ deviceId }` -> `{ ok: true }`
+- `push_notification_config_get` -> `{ relayUrl, hasRelayAuthToken, registeredDeviceCount }`
+- `push_notification_config_patch` `{ relayUrl?, relayAuthToken? }` -> `{ relayUrl, hasRelayAuthToken, registeredDeviceCount }`
+- `push_notification_state` -> `{ config, devices[], presence[] }`
 
 ### Settings / Files / Remote Connectivity Helpers
 
@@ -178,4 +184,3 @@ Daemon dispatch entrypoint: `src-tauri/src/bin/codex_monitor_daemon/rpc/dispatch
 - `dictation_openai_status` -> `DictationOpenAiStatus`
 - `dictation_remote_config` -> `DictationRemoteConfig`
 - `dictation_transcribe_wav` `{ wavBase64, language? }` -> `string`
-

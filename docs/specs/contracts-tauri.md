@@ -142,6 +142,14 @@ Terminal output is delivered out-of-band via events; see `docs/specs/events.md`.
 - `local_usage_snapshot` -> `LocalUsageSnapshot`
 - `is_macos_debug_build` -> `boolean`
 - `send_notification_fallback` `{ title, body }` -> `void`
+- `send_presence_heartbeat` `{ clientId, clientKind, platform?, isSupported, isFocused, isAfk, activeWorkspaceIds[] }` -> `void`
+- `push_register_device` `{ deviceId, platform, token, label? }` -> `void`
+- `push_unregister_device` `{ deviceId }` -> `void`
+- `push_notification_config_get` -> `{ relayUrl, hasRelayAuthToken, registeredDeviceCount }`
+- `push_notification_config_patch` `{ relayUrl?, relayAuthToken? }` -> `{ relayUrl, hasRelayAuthToken, registeredDeviceCount }`
+- `push_notification_state` -> `{ config, devices[], presence[] }`
+- `get_system_idle_seconds` -> `number | null`
+- `mobile_push_registration_info` -> `{ platform, deviceId, token, label? } | null`
 
 ## Orbit / Tailscale Helpers
 

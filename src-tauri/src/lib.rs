@@ -20,6 +20,7 @@ mod menu;
 #[cfg(not(desktop))]
 #[path = "menu_mobile.rs"]
 mod menu;
+mod mobile_push;
 mod notifications;
 mod prompts;
 mod push_notifications;
@@ -168,6 +169,7 @@ pub fn run() {
     let builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
 
     let builder = builder
+        .plugin(mobile_push::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
@@ -301,6 +303,7 @@ pub fn run() {
             push_notifications::push_notification_config_patch,
             push_notifications::push_notification_state,
             push_notifications::get_system_idle_seconds,
+            push_notifications::mobile_push_registration_info,
             tailscale::tailscale_status,
             tailscale::tailscale_daemon_command_preview,
             tailscale::tailscale_daemon_start,

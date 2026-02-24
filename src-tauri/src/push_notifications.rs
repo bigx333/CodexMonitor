@@ -1,6 +1,8 @@
 use serde_json::{json, Value};
 use tauri::{AppHandle, State};
 
+#[cfg(target_os = "android")]
+use crate::mobile_push::MobilePushExt;
 use crate::remote_backend;
 use crate::state::AppState;
 
@@ -139,6 +141,27 @@ pub(crate) async fn push_notification_state(
 #[tauri::command]
 pub(crate) async fn get_system_idle_seconds() -> Result<Option<f64>, String> {
     Ok(system_idle_seconds())
+}
+
+#[tauri::command]
+pub(crate) async fn mobile_push_registration_info(
+    app: AppHandle,
+) -> Result<Option<crate::mobile_push::MobilePushRegistrationInfo>, String> {
+    #[cfg(target_os = "android")]
+    {
+        match app.mobile_push().registration_info() {
+            Ok(info) => Ok(Some(info)),
+            Err(err) => {
+                eprintln!("mobile push registration lookup failed: {err}");
+                Ok(None)
+            }
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        Ok(None)
+    }
 }
 
 #[cfg(target_os = "windows")]

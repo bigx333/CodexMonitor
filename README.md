@@ -86,6 +86,14 @@ If your NDK is installed outside default SDK paths, set one of:
 - `NDK_HOME`
 - `ANDROID_HOME` / `ANDROID_SDK_ROOT` (with `ndk/*` installed)
 
+### Android Push Notifications (Remote Mode)
+
+- App startup requests notification permission on mobile runtime.
+- AFK-gated push registration requires Firebase Cloud Messaging (FCM).
+- Add `src-tauri/gen/android/app/google-services.json` for your Firebase Android app.
+- On startup in remote mode, Android attempts to fetch an FCM token and register device with daemon push broker.
+- Without `google-services.json`, remote push registration is skipped.
+
 ## iOS Support (WIP)
 
 iOS support is currently in progress.
