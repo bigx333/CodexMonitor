@@ -437,6 +437,8 @@ export type LayoutNodesOptions = {
   onInsertHandled: (id: string) => void;
   onEditQueued: (item: QueuedMessage) => void;
   onDeleteQueued: (id: string) => void;
+  onSendQueuedNow?: (id: string) => void;
+  canSendQueuedNow?: boolean;
   collaborationModes: CollaborationModeOption[];
   selectedCollaborationModeId: string | null;
   onSelectCollaborationMode: (id: string | null) => void;

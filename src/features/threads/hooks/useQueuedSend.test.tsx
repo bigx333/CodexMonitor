@@ -154,6 +154,68 @@ describe("useQueuedSend", () => {
     expect(result.current.activeQueue[0]?.text).toBe("Wait for turn");
   });
 
+  it("sends queued message now via steer when active turn is available", async () => {
+    const options = makeOptions({
+      isProcessing: true,
+      steerEnabled: true,
+      activeTurnId: "turn-1",
+    });
+    const { result } = renderHook((props) => useQueuedSend(props), {
+      initialProps: options,
+    });
+
+    await act(async () => {
+      await result.current.queueMessage("Send now");
+    });
+
+    const queuedId = result.current.activeQueue[0]?.id;
+    expect(queuedId).toBeTruthy();
+    if (!queuedId) {
+      throw new Error("Expected queued item id");
+    }
+
+    await act(async () => {
+      await result.current.sendQueuedMessageNow("thread-1", queuedId);
+    });
+
+    expect(options.sendUserMessage).toHaveBeenCalledWith(
+      "Send now",
+      [],
+      undefined,
+      { sendIntent: "steer" },
+    );
+    expect(result.current.activeQueue).toHaveLength(0);
+  });
+
+  it("keeps queued message when send-now steer is unavailable", async () => {
+    const options = makeOptions({
+      isProcessing: true,
+      steerEnabled: true,
+      activeTurnId: null,
+    });
+    const { result } = renderHook((props) => useQueuedSend(props), {
+      initialProps: options,
+    });
+
+    await act(async () => {
+      await result.current.queueMessage("Hold");
+    });
+
+    const queuedId = result.current.activeQueue[0]?.id;
+    expect(queuedId).toBeTruthy();
+    if (!queuedId) {
+      throw new Error("Expected queued item id");
+    }
+
+    await act(async () => {
+      await result.current.sendQueuedMessageNow("thread-1", queuedId);
+    });
+
+    expect(options.sendUserMessage).not.toHaveBeenCalled();
+    expect(result.current.activeQueue).toHaveLength(1);
+    expect(result.current.activeQueue[0]?.text).toBe("Hold");
+  });
+
   it("routes !commands to local execution and strips images/mentions", async () => {
     const runBangCommand = vi.fn().mockResolvedValue(undefined);
     const options = makeOptions({ runBangCommand });

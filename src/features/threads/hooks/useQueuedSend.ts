@@ -61,6 +61,7 @@ type UseQueuedSendResult = {
     appMentions?: AppMention[],
   ) => Promise<void>;
   removeQueuedMessage: (threadId: string, messageId: string) => void;
+  sendQueuedMessageNow: (threadId: string, messageId: string) => Promise<void>;
 };
 
 type SlashCommandKind =
@@ -357,6 +358,64 @@ export function useQueuedSend({
     ],
   );
 
+  const sendQueuedMessageNow = useCallback(
+    async (threadId: string, messageId: string) => {
+      if (!threadId || !messageId || isReviewing) {
+        return;
+      }
+      if (!isProcessing || !steerEnabled || !activeTurnId) {
+        return;
+      }
+      const queue = queuedByThread[threadId] ?? [];
+      const nextItem = queue.find((entry) => entry.id === messageId);
+      if (!nextItem) {
+        return;
+      }
+      const trimmed = nextItem.text.trim();
+      const bangCommand = isBangCommand(trimmed);
+      const command = bangCommand ? null : parseSlashCommand(trimmed, appsEnabled);
+      if (bangCommand || command) {
+        return;
+      }
+      setInFlightByThread((prev) => ({ ...prev, [threadId]: nextItem }));
+      setHasStartedByThread((prev) => ({ ...prev, [threadId]: false }));
+      setQueuedByThread((prev) => ({
+        ...prev,
+        [threadId]: (prev[threadId] ?? []).filter(
+          (entry) => entry.id !== messageId,
+        ),
+      }));
+      try {
+        const queuedMentions = nextItem.appMentions ?? [];
+        const sendResult =
+          queuedMentions.length > 0
+            ? await sendUserMessage(nextItem.text, nextItem.images ?? [], queuedMentions, {
+              sendIntent: "steer",
+            })
+            : await sendUserMessage(nextItem.text, nextItem.images ?? [], undefined, {
+              sendIntent: "steer",
+            });
+        if (sendResult.status !== "sent") {
+          throw new Error(sendResult.status);
+        }
+      } catch {
+        setInFlightByThread((prev) => ({ ...prev, [threadId]: null }));
+        setHasStartedByThread((prev) => ({ ...prev, [threadId]: false }));
+        prependQueuedMessage(threadId, nextItem);
+      }
+    },
+    [
+      activeTurnId,
+      appsEnabled,
+      isProcessing,
+      isReviewing,
+      prependQueuedMessage,
+      queuedByThread,
+      sendUserMessage,
+      steerEnabled,
+    ],
+  );
+
   useEffect(() => {
     if (!activeThreadId) {
       return;
@@ -448,5 +507,6 @@ export function useQueuedSend({
     handleSend,
     queueMessage,
     removeQueuedMessage,
+    sendQueuedMessageNow,
   };
 }

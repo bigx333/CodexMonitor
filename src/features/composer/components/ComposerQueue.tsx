@@ -12,6 +12,8 @@ type ComposerQueueProps = {
   pausedReason?: string | null;
   onEditQueued?: (item: QueuedMessage) => void;
   onDeleteQueued?: (id: string) => void;
+  onSendQueuedNow?: (id: string) => void;
+  sendNowEnabled?: boolean;
 };
 
 export function ComposerQueue({
@@ -19,6 +21,8 @@ export function ComposerQueue({
   pausedReason = null,
   onEditQueued,
   onDeleteQueued,
+  onSendQueuedNow,
+  sendNowEnabled = false,
 }: ComposerQueueProps) {
   if (queuedMessages.length === 0) {
     return null;
@@ -44,6 +48,18 @@ export function ComposerQueue({
                 ? ` · ${item.images.length} image${item.images.length === 1 ? "" : "s"}`
                 : ""}
             </span>
+            {onSendQueuedNow ? (
+              <button
+                type="button"
+                className="composer-queue-send-now"
+                onClick={() => onSendQueuedNow(item.id)}
+                disabled={!sendNowEnabled}
+                title="Send now without interrupting work"
+                aria-label="Send queued message now"
+              >
+                Send now
+              </button>
+            ) : null}
             <QueueMenuButton
               item={item}
               onEditQueued={onEditQueued}

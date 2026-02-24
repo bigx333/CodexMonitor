@@ -1474,6 +1474,8 @@ function MainApp() {
     handleSendPrompt,
     handleEditQueued,
     handleDeleteQueued,
+    canSendQueuedNow,
+    handleSendQueuedNow,
     clearDraftForThread,
   } = useComposerController({
     activeThreadId,
@@ -2428,6 +2430,8 @@ function MainApp() {
     },
     onEditQueued: handleEditQueued,
     onDeleteQueued: handleDeleteQueued,
+    onSendQueuedNow: handleSendQueuedNow,
+    canSendQueuedNow,
     collaborationModes,
     selectedCollaborationModeId,
     onSelectCollaborationMode: handleSelectCollaborationMode,

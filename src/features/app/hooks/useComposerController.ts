@@ -93,6 +93,7 @@ export function useComposerController({
     handleSend,
     queueMessage,
     removeQueuedMessage,
+    sendQueuedMessageNow,
   } = useQueuedSend({
     activeThreadId,
     activeTurnId,
@@ -169,6 +170,19 @@ export function useComposerController({
     [activeThreadId, removeQueuedMessage],
   );
 
+  const canSendQueuedNow =
+    !isReviewing && isProcessing && steerEnabled && Boolean(activeTurnId);
+
+  const handleSendQueuedNow = useCallback(
+    (id: string) => {
+      if (!activeThreadId || !canSendQueuedNow) {
+        return;
+      }
+      void sendQueuedMessageNow(activeThreadId, id);
+    },
+    [activeThreadId, canSendQueuedNow, sendQueuedMessageNow],
+  );
+
   const clearDraftForThread = useCallback((threadId: string) => {
     setComposerDraftsByThread((prev) => {
       if (!(threadId in prev)) {
@@ -200,6 +214,8 @@ export function useComposerController({
     handleSendPrompt,
     handleEditQueued,
     handleDeleteQueued,
+    canSendQueuedNow,
+    handleSendQueuedNow,
     clearDraftForThread,
   };
 }

@@ -46,4 +46,36 @@ describe("ComposerQueue", () => {
     expect(onDeleteQueued).toHaveBeenCalledTimes(1);
     expect(onDeleteQueued).toHaveBeenCalledWith(queuedItem.id);
   });
+
+  it("calls send-now callback for selected queued item", () => {
+    const onSendQueuedNow = vi.fn();
+    render(
+      <ComposerQueue
+        queuedMessages={[queuedItem]}
+        onSendQueuedNow={onSendQueuedNow}
+        sendNowEnabled
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Send queued message now" }));
+
+    expect(onSendQueuedNow).toHaveBeenCalledTimes(1);
+    expect(onSendQueuedNow).toHaveBeenCalledWith(queuedItem.id);
+  });
+
+  it("disables send-now button when not available", () => {
+    const onSendQueuedNow = vi.fn();
+    render(
+      <ComposerQueue
+        queuedMessages={[queuedItem]}
+        onSendQueuedNow={onSendQueuedNow}
+        sendNowEnabled={false}
+      />,
+    );
+
+    const sendNowButton = screen.getByRole("button", {
+      name: "Send queued message now",
+    }) as HTMLButtonElement;
+    expect(sendNowButton.disabled).toBe(true);
+  });
 });

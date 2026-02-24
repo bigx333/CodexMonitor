@@ -86,6 +86,8 @@ type ComposerProps = {
   queuePausedReason?: string | null;
   onEditQueued?: (item: QueuedMessage) => void;
   onDeleteQueued?: (id: string) => void;
+  onSendQueuedNow?: (id: string) => void;
+  canSendQueuedNow?: boolean;
   sendLabel?: string;
   draftText?: string;
   onDraftChange?: (text: string) => void;
@@ -194,6 +196,8 @@ export const Composer = memo(function Composer({
   queuePausedReason = null,
   onEditQueued,
   onDeleteQueued,
+  onSendQueuedNow,
+  canSendQueuedNow = false,
   sendLabel = "Send",
   draftText = "",
   onDraftChange,
@@ -645,6 +649,8 @@ export const Composer = memo(function Composer({
         pausedReason={queuePausedReason}
         onEditQueued={onEditQueued}
         onDeleteQueued={onDeleteQueued}
+        onSendQueuedNow={onSendQueuedNow}
+        sendNowEnabled={canSendQueuedNow}
       />
       {isProcessing && composerFollowUpHintEnabled && (
         <div className="composer-followup-hint" role="status" aria-live="polite">

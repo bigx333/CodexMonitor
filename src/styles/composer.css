@@ -57,6 +57,28 @@
   white-space: nowrap;
 }
 
+.composer-queue-send-now {
+  border: 1px solid var(--border-muted);
+  background: var(--surface-card);
+  color: var(--text-subtle);
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 999px;
+  padding: 3px 8px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.composer-queue-send-now:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text-strong);
+}
+
+.composer-queue-send-now:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .composer-queue-menu {
   border: none;
   background: transparent;

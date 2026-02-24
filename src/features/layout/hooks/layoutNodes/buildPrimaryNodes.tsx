@@ -150,6 +150,8 @@ export function buildPrimaryNodes(options: LayoutNodesOptions): PrimaryLayoutNod
       onInsertHandled={options.onInsertHandled}
       onEditQueued={options.onEditQueued}
       onDeleteQueued={options.onDeleteQueued}
+      onSendQueuedNow={options.onSendQueuedNow}
+      canSendQueuedNow={options.canSendQueuedNow}
       collaborationModes={options.collaborationModes}
       selectedCollaborationModeId={options.selectedCollaborationModeId}
       onSelectCollaborationMode={options.onSelectCollaborationMode}
