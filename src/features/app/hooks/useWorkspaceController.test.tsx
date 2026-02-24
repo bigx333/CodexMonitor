@@ -131,8 +131,8 @@ describe("useWorkspaceController dialogs", () => {
     );
   });
 
-  it("opens the in-app remote path prompt on mobile remote mode", async () => {
-    vi.mocked(isMobilePlatform).mockReturnValue(true);
+  it("opens the in-app remote path prompt in remote mode on desktop", async () => {
+    vi.mocked(isMobilePlatform).mockReturnValue(false);
     vi.mocked(listWorkspaces).mockResolvedValue([]);
     vi.mocked(isWorkspacePathDir).mockResolvedValue(true);
     vi.mocked(addWorkspace).mockResolvedValue(workspaceOne);

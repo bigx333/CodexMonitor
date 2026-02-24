@@ -208,124 +208,120 @@ export function SettingsServerSection({
       )}
 
       <>
-        {isMobileSimplified && (
-          <>
-            <div className="settings-field">
-              <div className="settings-field-label">Saved remotes</div>
-              <div className="settings-mobile-remotes" role="list" aria-label="Saved remotes">
-                {remoteBackends.map((entry, index) => {
-                  const isActive = entry.id === activeRemoteBackendId;
-                  return (
-                    <div
-                      className={`settings-mobile-remote${isActive ? " is-active" : ""}`}
-                      role="listitem"
-                      key={entry.id}
-                    >
-                      <div className="settings-mobile-remote-main">
-                        <div className="settings-mobile-remote-name-row">
-                          <div className="settings-mobile-remote-name">{entry.name}</div>
-                          {isActive && <span className="settings-mobile-remote-badge">Active</span>}
-                        </div>
-                        <div className="settings-mobile-remote-meta">TCP · {entry.host}</div>
-                        <div className="settings-mobile-remote-last">
-                          Last connected:{" "}
-                          {typeof entry.lastConnectedAtMs === "number"
-                            ? new Date(entry.lastConnectedAtMs).toLocaleString()
-                            : "Never"}
-                        </div>
-                      </div>
-                      <div className="settings-mobile-remote-actions">
-                        <button
-                          type="button"
-                          className="ghost settings-mobile-remote-action"
-                          onClick={() => {
-                            void onSelectRemoteBackend(entry.id);
-                          }}
-                          disabled={isActive}
-                          aria-label={`Use ${entry.name} remote`}
-                        >
-                          {isActive ? "Using" : "Use"}
-                        </button>
-                        <button
-                          type="button"
-                          className="ghost settings-mobile-remote-action"
-                          onClick={() => {
-                            void onMoveRemoteBackend(entry.id, "up");
-                          }}
-                          disabled={index === 0}
-                          aria-label={`Move ${entry.name} up`}
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          className="ghost settings-mobile-remote-action"
-                          onClick={() => {
-                            void onMoveRemoteBackend(entry.id, "down");
-                          }}
-                          disabled={index === remoteBackends.length - 1}
-                          aria-label={`Move ${entry.name} down`}
-                        >
-                          ↓
-                        </button>
-                        <button
-                          type="button"
-                          className="ghost settings-mobile-remote-action settings-mobile-remote-action-danger"
-                          onClick={() => {
-                            setPendingDeleteRemoteId(entry.id);
-                          }}
-                          aria-label={`Delete ${entry.name}`}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="settings-field-row">
-                <button
-                  type="button"
-                  className="button settings-button-compact"
-                  onClick={openAddRemoteModal}
+        <div className="settings-field">
+          <div className="settings-field-label">Saved remotes</div>
+          <div className="settings-mobile-remotes" role="list" aria-label="Saved remotes">
+            {remoteBackends.map((entry, index) => {
+              const isActive = entry.id === activeRemoteBackendId;
+              return (
+                <div
+                  className={`settings-mobile-remote${isActive ? " is-active" : ""}`}
+                  role="listitem"
+                  key={entry.id}
                 >
-                  Add remote
-                </button>
-              </div>
-              {remoteStatusText && (
-                <div className={`settings-help${remoteStatusError ? " settings-help-error" : ""}`}>
-                  {remoteStatusText}
+                  <div className="settings-mobile-remote-main">
+                    <div className="settings-mobile-remote-name-row">
+                      <div className="settings-mobile-remote-name">{entry.name}</div>
+                      {isActive && <span className="settings-mobile-remote-badge">Active</span>}
+                    </div>
+                    <div className="settings-mobile-remote-meta">TCP · {entry.host}</div>
+                    <div className="settings-mobile-remote-last">
+                      Last connected:{" "}
+                      {typeof entry.lastConnectedAtMs === "number"
+                        ? new Date(entry.lastConnectedAtMs).toLocaleString()
+                        : "Never"}
+                    </div>
+                  </div>
+                  <div className="settings-mobile-remote-actions">
+                    <button
+                      type="button"
+                      className="ghost settings-mobile-remote-action"
+                      onClick={() => {
+                        void onSelectRemoteBackend(entry.id);
+                      }}
+                      disabled={isActive}
+                      aria-label={`Use ${entry.name} remote`}
+                    >
+                      {isActive ? "Using" : "Use"}
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost settings-mobile-remote-action"
+                      onClick={() => {
+                        void onMoveRemoteBackend(entry.id, "up");
+                      }}
+                      disabled={index === 0}
+                      aria-label={`Move ${entry.name} up`}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost settings-mobile-remote-action"
+                      onClick={() => {
+                        void onMoveRemoteBackend(entry.id, "down");
+                      }}
+                      disabled={index === remoteBackends.length - 1}
+                      aria-label={`Move ${entry.name} down`}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost settings-mobile-remote-action settings-mobile-remote-action-danger"
+                      onClick={() => {
+                        setPendingDeleteRemoteId(entry.id);
+                      }}
+                      aria-label={`Delete ${entry.name}`}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
-              )}
-              <div className="settings-help">
-                Switch the active remote here. The fields below edit the active entry.
-              </div>
+              );
+            })}
+          </div>
+          <div className="settings-field-row">
+            <button
+              type="button"
+              className="button settings-button-compact"
+              onClick={openAddRemoteModal}
+            >
+              Add remote
+            </button>
+          </div>
+          {remoteStatusText && (
+            <div className={`settings-help${remoteStatusError ? " settings-help-error" : ""}`}>
+              {remoteStatusText}
             </div>
+          )}
+          <div className="settings-help">
+            Switch the active remote here. The fields below edit the active entry.
+          </div>
+        </div>
 
-            <div className="settings-field">
-              <label className="settings-field-label" htmlFor="mobile-remote-name">
-                Remote name
-              </label>
-              <input
-                id="mobile-remote-name"
-                className="settings-input settings-input--compact"
-                value={remoteNameDraft}
-                placeholder="My desktop"
-                onChange={(event) => onSetRemoteNameDraft(event.target.value)}
-                onBlur={() => {
-                  void onCommitRemoteName();
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    void onCommitRemoteName();
-                  }
-                }}
-              />
-              {remoteNameError && <div className="settings-help settings-help-error">{remoteNameError}</div>}
-            </div>
-          </>
-        )}
+        <div className="settings-field">
+          <label className="settings-field-label" htmlFor="mobile-remote-name">
+            Remote name
+          </label>
+          <input
+            id="mobile-remote-name"
+            className="settings-input settings-input--compact"
+            value={remoteNameDraft}
+            placeholder="My desktop"
+            onChange={(event) => onSetRemoteNameDraft(event.target.value)}
+            onBlur={() => {
+              void onCommitRemoteName();
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void onCommitRemoteName();
+              }
+            }}
+          />
+          {remoteNameError && <div className="settings-help settings-help-error">{remoteNameError}</div>}
+        </div>
 
         {!isMobileSimplified && (
           <div className="settings-toggle-row">

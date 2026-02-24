@@ -95,9 +95,24 @@ pub(crate) async fn read_image_as_data_url(
         return Err("Image path is required".to_string());
     }
 
-    let mobile_runtime = cfg!(any(target_os = "ios", target_os = "android"));
     let remote_mode = remote_backend::is_remote_mode(&*state).await;
-    if !mobile_runtime && !remote_mode {
+    if remote_mode {
+        let remote_path = remote_backend::normalize_path_for_remote(trimmed_path.to_string());
+        let response = remote_backend::call_remote(
+            &*state,
+            app,
+            "read_image_as_data_url",
+            json!({ "path": remote_path }),
+        )
+        .await?;
+        return response
+            .as_str()
+            .map(|value| value.to_string())
+            .ok_or_else(|| "invalid read_image_as_data_url response".to_string());
+    }
+
+    let mobile_runtime = cfg!(any(target_os = "ios", target_os = "android"));
+    if !mobile_runtime {
         return Err("Image conversion is only supported in remote backend mode or on mobile runtimes".to_string());
     }
 
@@ -106,7 +121,6 @@ pub(crate) async fn read_image_as_data_url(
         return Err("Image path is required".to_string());
     }
 
-    let _ = app;
     codex_core::read_image_as_data_url_core(&normalized)
 }
 

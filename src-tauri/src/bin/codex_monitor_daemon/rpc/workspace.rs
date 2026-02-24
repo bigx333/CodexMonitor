@@ -229,6 +229,13 @@ pub(super) async fn try_handle(
                 .await,
             )
         }
+        "read_image_as_data_url" => {
+            let path = match parse_string(params, "path") {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            Some(serialize_result(state.read_image_as_data_url(path)).await)
+        }
         "get_app_settings" => Some(serialize_value(state.get_app_settings().await)),
         "update_app_settings" => {
             let settings_value = match params {

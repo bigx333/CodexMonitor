@@ -688,6 +688,18 @@ impl DaemonState {
         files_core::file_write_core(&self.workspaces, scope, kind, workspace_id, content).await
     }
 
+    async fn read_image_as_data_url(&self, path: String) -> Result<String, String> {
+        let trimmed_path = path.trim();
+        if trimmed_path.is_empty() {
+            return Err("Image path is required".to_string());
+        }
+        let normalized = codex_core::normalize_file_path(trimmed_path);
+        if normalized.is_empty() {
+            return Err("Image path is required".to_string());
+        }
+        codex_core::read_image_as_data_url_core(&normalized)
+    }
+
     async fn start_thread(&self, workspace_id: String) -> Result<Value, String> {
         codex_core::start_thread_core(&self.sessions, &self.workspaces, workspace_id).await
     }
