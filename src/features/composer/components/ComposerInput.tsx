@@ -3,6 +3,7 @@ import type {
   ChangeEvent,
   ClipboardEvent,
   KeyboardEvent,
+  PointerEvent as ReactPointerEvent,
   RefObject,
   SyntheticEvent,
 } from "react";
@@ -32,6 +33,7 @@ import { DictationWaveform } from "../../dictation/components/DictationWaveform"
 import { ReviewInlinePrompt } from "./ReviewInlinePrompt";
 import type { ReviewPromptState, ReviewPromptStep } from "../../threads/hooks/useReviewPrompt";
 import { getFileTypeIconUrl } from "../../../utils/fileTypeIcons";
+import { isMobilePlatform } from "../../../utils/platformPaths";
 
 type ComposerInputProps = {
   text: string;
@@ -192,6 +194,7 @@ export function ComposerInput({
   const suggestionListRef = useRef<HTMLDivElement | null>(null);
   const suggestionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const mobileActionsRef = useRef<HTMLDivElement | null>(null);
+  const mobilePlatform = isMobilePlatform();
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const [isPhoneLayout, setIsPhoneLayout] = useState(false);
   const [isPhoneTallInput, setIsPhoneTallInput] = useState(false);
@@ -330,6 +333,16 @@ export function ComposerInput({
       onSend();
     }
   }, [canStop, onSend, onStop]);
+  const handleActionPointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (!mobilePlatform || canStop) {
+        return;
+      }
+      // Keep textarea focused on mobile so tapping send doesn't collapse the keyboard first.
+      event.preventDefault();
+    },
+    [canStop, mobilePlatform],
+  );
   const isDictating = dictationState === "listening";
   const isDictationBusy = dictationState !== "idle";
   const allowOpenDictationSettings = Boolean(
@@ -505,6 +518,7 @@ export function ComposerInput({
             onChange={handleTextareaChange}
             onSelect={handleTextareaSelect}
             disabled={disabled}
+            enterKeyHint={mobilePlatform ? "enter" : "send"}
             onKeyDown={onKeyDown}
             onDragOver={handleDragOver}
             onDragEnter={handleDragEnter}
@@ -703,6 +717,7 @@ export function ComposerInput({
         className={`composer-action${canStop ? " is-stop" : " is-send"}${
           canStop && isProcessing ? " is-loading" : ""
         }`}
+        onPointerDown={handleActionPointerDown}
         onClick={handleActionClick}
         disabled={(disabled && !canStop) || isDictationBusy || (!canStop && !canSend)}
         aria-label={canStop ? "Stop" : sendLabel}

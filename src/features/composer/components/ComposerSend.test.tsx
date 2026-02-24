@@ -117,24 +117,32 @@ describe("Composer send triggers", () => {
     expect(onSend).toHaveBeenCalledWith("from button", [], undefined, "default");
   });
 
-  it("blurs the textarea after Enter send on mobile", () => {
+  it("inserts a newline instead of sending on Enter on mobile", () => {
     vi.mocked(isMobilePlatform).mockReturnValue(true);
     const onSend = vi.fn();
-    const blurSpy = vi.spyOn(HTMLTextAreaElement.prototype, "blur");
     render(<ComposerHarness onSend={onSend} />);
 
     const textarea = screen.getByRole("textbox");
-    fireEvent.change(textarea, { target: { value: "dismiss keyboard" } });
+    fireEvent.change(textarea, { target: { value: "line one" } });
     fireEvent.keyDown(textarea, { key: "Enter" });
 
+    expect(onSend).not.toHaveBeenCalled();
+    expect((textarea as HTMLTextAreaElement).value).toBe("line one\n");
+  });
+
+  it("sends once on mobile send-button pointer tap", () => {
+    vi.mocked(isMobilePlatform).mockReturnValue(true);
+    const onSend = vi.fn();
+    render(<ComposerHarness onSend={onSend} />);
+
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "from mobile button" } });
+    const sendButton = screen.getByLabelText("Send");
+    fireEvent.pointerDown(sendButton);
+    fireEvent.click(sendButton);
+
     expect(onSend).toHaveBeenCalledTimes(1);
-    expect(onSend).toHaveBeenCalledWith(
-      "dismiss keyboard",
-      [],
-      undefined,
-      "default",
-    );
-    expect(blurSpy).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith("from mobile button", [], undefined, "default");
   });
 
   it("sends explicit app mentions when an app autocomplete item is selected", () => {

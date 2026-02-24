@@ -255,6 +255,7 @@ export const Composer = memo(function Composer({
   const isDictationBusy = dictationState !== "idle";
   const canSend = text.trim().length > 0 || attachedImages.length > 0;
   const isMac = isMacPlatform();
+  const isMobile = isMobilePlatform();
   const followUpShortcutLabel = isMac ? "Shift+Cmd+Enter" : "Shift+Ctrl+Enter";
   const effectiveFollowUpBehavior: FollowUpMessageBehavior =
     followUpMessageBehavior === "steer" && steerAvailable ? "steer" : "queue";
@@ -727,11 +728,7 @@ export const Composer = memo(function Composer({
               return;
             }
             event.preventDefault();
-            const dismissKeyboardAfterSend = canSend && isMobilePlatform();
             handleSend(oppositeSubmitIntent);
-            if (dismissKeyboardAfterSend) {
-              textareaRef.current?.blur();
-            }
             return;
           }
           if (
@@ -818,11 +815,19 @@ export const Composer = memo(function Composer({
               return;
             }
             event.preventDefault();
-            const dismissKeyboardAfterSend = canSend && isMobilePlatform();
-            handleSend(defaultSubmitIntent);
-            if (dismissKeyboardAfterSend) {
-              textareaRef.current?.blur();
+            if (isMobile) {
+              const textarea = textareaRef.current;
+              if (!textarea) {
+                return;
+              }
+              const start = textarea.selectionStart ?? text.length;
+              const end = textarea.selectionEnd ?? start;
+              const nextText = `${text.slice(0, start)}\n${text.slice(end)}`;
+              const nextCursor = start + 1;
+              applyTextInsertion(nextText, nextCursor);
+              return;
             }
+            handleSend(defaultSubmitIntent);
           }
         }}
         textareaRef={textareaRef}
