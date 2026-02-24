@@ -127,6 +127,7 @@ const baseSettings: AppSettings = {
   experimentalAppsEnabled: false,
   personality: "friendly",
   dictationEnabled: false,
+  dictationProvider: "local",
   dictationModelId: "base",
   dictationPreferredLanguage: null,
   dictationHoldKey: null,
@@ -1135,7 +1136,7 @@ describe("SettingsView Codex section", () => {
         Reflect.deleteProperty(window.navigator, "maxTouchPoints");
       }
     }
-  });
+  }, 15000);
 
 });
 

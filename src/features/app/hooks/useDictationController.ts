@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDictation } from "../../dictation/hooks/useDictation";
 import { useDictationModel } from "../../dictation/hooks/useDictationModel";
 import { useHoldToDictate } from "../../dictation/hooks/useHoldToDictate";
@@ -13,37 +13,62 @@ type DictationController = {
   dictationError: ReturnType<typeof useDictation>["error"];
   dictationHint: ReturnType<typeof useDictation>["hint"];
   dictationReady: boolean;
+  setDictationWorkspaceId: (workspaceId: string | null) => void;
   handleToggleDictation: () => Promise<void>;
   clearDictationTranscript: ReturnType<typeof useDictation>["clearTranscript"];
   clearDictationError: ReturnType<typeof useDictation>["clearError"];
   clearDictationHint: ReturnType<typeof useDictation>["clearHint"];
-  startDictation: ReturnType<typeof useDictation>["start"];
+  startDictation: (preferredLanguage: string | null) => Promise<void>;
   stopDictation: ReturnType<typeof useDictation>["stop"];
   cancelDictation: ReturnType<typeof useDictation>["cancel"];
 };
 
 export function useDictationController(appSettings: AppSettings): DictationController {
-  const dictationModel = useDictationModel(appSettings.dictationModelId);
+  const [dictationWorkspaceId, setDictationWorkspaceIdState] = useState<string | null>(null);
+  const dictationModel = useDictationModel(
+    appSettings.dictationProvider,
+    appSettings.dictationModelId,
+    dictationWorkspaceId,
+  );
   const {
     state: dictationState,
     level: dictationLevel,
     transcript: dictationTranscript,
     error: dictationError,
     hint: dictationHint,
-    start: startDictation,
+    start: startDictationRaw,
     stop: stopDictation,
     cancel: cancelDictation,
     clearTranscript: clearDictationTranscript,
     clearError: clearDictationError,
     clearHint: clearDictationHint,
   } = useDictation();
-  const dictationReady = dictationModel.status?.state === "ready";
+  const dictationReady =
+    appSettings.dictationProvider === "chatgpt"
+      ? Boolean(dictationWorkspaceId) && Boolean(dictationModel.authStatus?.authenticated)
+      : dictationModel.status?.state === "ready";
   const holdDictationKey = (appSettings.dictationHoldKey ?? "").toLowerCase();
   const permissionRequestPendingRef = useRef(false);
   const permissionRequestedRef = useRef(false);
 
+  const setDictationWorkspaceId = useCallback((workspaceId: string | null) => {
+    setDictationWorkspaceIdState((current) => (current === workspaceId ? current : workspaceId));
+  }, []);
+
+  const startDictation = useCallback(
+    async (preferredLanguage: string | null) => {
+      await startDictationRaw(preferredLanguage, dictationWorkspaceId);
+    },
+    [dictationWorkspaceId, startDictationRaw],
+  );
+
   const handleToggleDictation = useCallback(async () => {
     if (!appSettings.dictationEnabled || !dictationReady) {
+      if (appSettings.dictationEnabled && appSettings.dictationProvider === "chatgpt") {
+        void dictationModel.refresh().catch(() => {
+          // Errors are surfaced through dictation events/status.
+        });
+      }
       return;
     }
     try {
@@ -59,7 +84,9 @@ export function useDictationController(appSettings: AppSettings): DictationContr
     }
   }, [
     appSettings.dictationEnabled,
+    appSettings.dictationProvider,
     appSettings.dictationPreferredLanguage,
+    dictationModel,
     dictationReady,
     dictationState,
     startDictation,
@@ -133,6 +160,7 @@ export function useDictationController(appSettings: AppSettings): DictationContr
     dictationError,
     dictationHint,
     dictationReady,
+    setDictationWorkspaceId,
     handleToggleDictation,
     clearDictationTranscript,
     clearDictationError,

@@ -198,6 +198,7 @@ function MainApp() {
     dictationError,
     dictationHint,
     dictationReady,
+    setDictationWorkspaceId,
     handleToggleDictation,
     clearDictationTranscript,
     clearDictationError,
@@ -274,6 +275,10 @@ function MainApp() {
     refreshWorkspaces,
   });
   const updaterEnabled = !isMobileRuntime;
+
+  useEffect(() => {
+    setDictationWorkspaceId(activeWorkspaceId);
+  }, [activeWorkspaceId, setDictationWorkspaceId]);
 
   const workspacesById = useMemo(
     () => new Map(workspaces.map((workspace) => [workspace.id, workspace])),
@@ -2763,6 +2768,7 @@ function MainApp() {
           onTestSystemNotification: handleTestSystemNotification,
           onMobileConnectSuccess: handleMobileConnectSuccess,
           dictationModelStatus: dictationModel.status,
+          dictationAuthStatus: dictationModel.authStatus,
           onDownloadDictationModel: dictationModel.download,
           onCancelDictationDownload: dictationModel.cancel,
           onRemoveDictationModel: dictationModel.remove,

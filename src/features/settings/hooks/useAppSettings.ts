@@ -22,6 +22,7 @@ import { DEFAULT_COMMIT_MESSAGE_PROMPT } from "@utils/commitMessagePrompt";
 
 const allowedThemes = new Set(["system", "light", "dark", "dim"]);
 const allowedPersonality = new Set(["friendly", "pragmatic"]);
+const allowedDictationProvider = new Set(["local", "chatgpt"]);
 const allowedFollowUpMessageBehavior = new Set(["queue", "steer"]);
 const DEFAULT_REMOTE_BACKEND_HOST = "127.0.0.1:4732";
 const DEFAULT_REMOTE_BACKEND_ID = "remote-default";
@@ -191,6 +192,7 @@ function buildDefaultSettings(): AppSettings {
     experimentalAppsEnabled: false,
     personality: "friendly",
     dictationEnabled: false,
+    dictationProvider: "local",
     dictationModelId: "base",
     dictationPreferredLanguage: null,
     dictationHoldKey: "alt",
@@ -257,6 +259,9 @@ function normalizeAppSettings(settings: AppSettings): AppSettings {
     personality: allowedPersonality.has(settings.personality)
       ? settings.personality
       : "friendly",
+    dictationProvider: allowedDictationProvider.has(settings.dictationProvider)
+      ? settings.dictationProvider
+      : "local",
     followUpMessageBehavior: allowedFollowUpMessageBehavior.has(
       settings.followUpMessageBehavior,
     )

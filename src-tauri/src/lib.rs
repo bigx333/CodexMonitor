@@ -289,6 +289,7 @@ pub fn run() {
             dictation::dictation_download_model,
             dictation::dictation_cancel_download,
             dictation::dictation_remove_model,
+            dictation::dictation_auth_status,
             dictation::dictation_start,
             dictation::dictation_request_permission,
             dictation::dictation_stop,

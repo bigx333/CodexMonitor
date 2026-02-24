@@ -62,6 +62,8 @@ mod files {
     }
 }
 
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -84,7 +86,7 @@ use shared::process_core::kill_child_process_tree;
 use shared::prompts_core::{self, CustomPromptEntry};
 use shared::{
     agents_config_core, codex_aux_core, codex_core, files_core, git_core, git_ui_core,
-    local_usage_core, settings_core, workspaces_core, worktree_core,
+    local_usage_core, settings_core, transcription_chatgpt_core, workspaces_core, worktree_core,
 };
 use storage::{read_settings, read_workspaces};
 use types::{
@@ -916,6 +918,38 @@ impl DaemonState {
 
     async fn account_read(&self, workspace_id: String) -> Result<Value, String> {
         codex_core::account_read_core(&self.sessions, &self.workspaces, workspace_id).await
+    }
+
+    async fn dictation_auth_status(
+        &self,
+        workspace_id: Option<String>,
+    ) -> Result<transcription_chatgpt_core::DictationAuthStatus, String> {
+        Ok(transcription_chatgpt_core::dictation_auth_status_core(
+            &self.sessions,
+            workspace_id,
+        )
+        .await)
+    }
+
+    async fn dictation_transcribe(
+        &self,
+        workspace_id: String,
+        audio_base64: String,
+        mime_type: String,
+        language: Option<String>,
+    ) -> Result<Value, String> {
+        let audio = STANDARD
+            .decode(audio_base64.as_bytes())
+            .map_err(|error| format!("Invalid dictation audio payload: {error}"))?;
+        let text = transcription_chatgpt_core::dictation_transcribe_chatgpt_core(
+            &self.sessions,
+            workspace_id,
+            audio,
+            mime_type,
+            language,
+        )
+        .await?;
+        Ok(json!({ "text": text }))
     }
 
     async fn codex_login(&self, workspace_id: String) -> Result<Value, String> {

@@ -1,4 +1,8 @@
-import type { AppSettings, DictationModelStatus } from "@/types";
+import type {
+  AppSettings,
+  DictationAuthStatus,
+  DictationModelStatus,
+} from "@/types";
 import { formatDownloadSize } from "@utils/formatting";
 
 type DictationModelOption = {
@@ -15,6 +19,7 @@ type SettingsDictationSectionProps = {
   dictationModels: DictationModelOption[];
   selectedDictationModel: DictationModelOption;
   dictationModelStatus?: DictationModelStatus | null;
+  dictationAuthStatus?: DictationAuthStatus | null;
   dictationReady: boolean;
   onUpdateAppSettings: (next: AppSettings) => Promise<void>;
   onDownloadDictationModel?: () => void;
@@ -29,25 +34,51 @@ export function SettingsDictationSection({
   dictationModels,
   selectedDictationModel,
   dictationModelStatus,
+  dictationAuthStatus,
   dictationReady,
   onUpdateAppSettings,
   onDownloadDictationModel,
   onCancelDictationDownload,
   onRemoveDictationModel,
 }: SettingsDictationSectionProps) {
+  const isLocalProvider = appSettings.dictationProvider === "local";
   const dictationProgress = dictationModelStatus?.progress ?? null;
 
   return (
     <section className="settings-section">
       <div className="settings-section-title">Dictation</div>
       <div className="settings-section-subtitle">
-        Enable microphone dictation with on-device transcription.
+        Hold to talk with local Whisper or ChatGPT transcription.
+      </div>
+      <div className="settings-field">
+        <label className="settings-field-label" htmlFor="dictation-provider">
+          Transcription provider
+        </label>
+        <select
+          id="dictation-provider"
+          className="settings-select"
+          value={appSettings.dictationProvider}
+          onChange={(event) =>
+            void onUpdateAppSettings({
+              ...appSettings,
+              dictationProvider: event.target.value as AppSettings["dictationProvider"],
+            })
+          }
+        >
+          <option value="local">Local Whisper</option>
+          <option value="chatgpt">ChatGPT account</option>
+        </select>
+        <div className="settings-help">
+          ChatGPT mode uses your active workspace Codex session and ChatGPT login.
+        </div>
       </div>
       <div className="settings-toggle-row">
         <div>
           <div className="settings-toggle-title">Enable dictation</div>
           <div className="settings-toggle-subtitle">
-            Downloads the selected Whisper model on first use.
+            {isLocalProvider
+              ? "Downloads the selected Whisper model on first use."
+              : "Requires ChatGPT authentication in the active workspace."}
           </div>
         </div>
         <button
@@ -60,6 +91,7 @@ export function SettingsDictationSection({
               dictationEnabled: nextEnabled,
             });
             if (
+              isLocalProvider &&
               !nextEnabled &&
               dictationModelStatus?.state === "downloading" &&
               onCancelDictationDownload
@@ -67,6 +99,7 @@ export function SettingsDictationSection({
               onCancelDictationDownload();
             }
             if (
+              isLocalProvider &&
               nextEnabled &&
               dictationModelStatus?.state === "missing" &&
               onDownloadDictationModel
@@ -79,31 +112,112 @@ export function SettingsDictationSection({
           <span className="settings-toggle-knob" />
         </button>
       </div>
-      <div className="settings-field">
-        <label className="settings-field-label" htmlFor="dictation-model">
-          Dictation model
-        </label>
-        <select
-          id="dictation-model"
-          className="settings-select"
-          value={appSettings.dictationModelId}
-          onChange={(event) =>
-            void onUpdateAppSettings({
-              ...appSettings,
-              dictationModelId: event.target.value,
-            })
-          }
-        >
-          {dictationModels.map((model) => (
-            <option key={model.id} value={model.id}>
-              {model.label} ({model.size})
-            </option>
-          ))}
-        </select>
-        <div className="settings-help">
-          {selectedDictationModel.note} Download size: {selectedDictationModel.size}.
+      {isLocalProvider ? (
+        <>
+          <div className="settings-field">
+            <label className="settings-field-label" htmlFor="dictation-model">
+              Dictation model
+            </label>
+            <select
+              id="dictation-model"
+              className="settings-select"
+              value={appSettings.dictationModelId}
+              onChange={(event) =>
+                void onUpdateAppSettings({
+                  ...appSettings,
+                  dictationModelId: event.target.value,
+                })
+              }
+            >
+              {dictationModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.label} ({model.size})
+                </option>
+              ))}
+            </select>
+            <div className="settings-help">
+              {selectedDictationModel.note} Download size: {selectedDictationModel.size}.
+            </div>
+          </div>
+          {dictationModelStatus && (
+            <div className="settings-field">
+              <div className="settings-field-label">
+                Model status ({selectedDictationModel.label})
+              </div>
+              <div className="settings-help">
+                {dictationModelStatus.state === "ready" && "Ready for dictation."}
+                {dictationModelStatus.state === "missing" && "Model not downloaded yet."}
+                {dictationModelStatus.state === "downloading" && "Downloading model..."}
+                {dictationModelStatus.state === "error" &&
+                  (dictationModelStatus.error ?? "Download error.")}
+              </div>
+              {dictationProgress && (
+                <div className="settings-download-progress">
+                  <div className="settings-download-bar">
+                    <div
+                      className="settings-download-fill"
+                      style={{
+                        width: dictationProgress.totalBytes
+                          ? `${Math.min(
+                              100,
+                              (dictationProgress.downloadedBytes / dictationProgress.totalBytes) *
+                                100,
+                            )}%`
+                          : "0%",
+                      }}
+                    />
+                  </div>
+                  <div className="settings-download-meta">
+                    {formatDownloadSize(dictationProgress.downloadedBytes)}
+                  </div>
+                </div>
+              )}
+              <div className="settings-field-actions">
+                {dictationModelStatus.state === "missing" && (
+                  <button
+                    type="button"
+                    className="primary"
+                    onClick={onDownloadDictationModel}
+                    disabled={!onDownloadDictationModel}
+                  >
+                    Download model
+                  </button>
+                )}
+                {dictationModelStatus.state === "downloading" && (
+                  <button
+                    type="button"
+                    className="ghost settings-button-compact"
+                    onClick={onCancelDictationDownload}
+                    disabled={!onCancelDictationDownload}
+                  >
+                    Cancel download
+                  </button>
+                )}
+                {dictationReady && (
+                  <button
+                    type="button"
+                    className="ghost settings-button-compact"
+                    onClick={onRemoveDictationModel}
+                    disabled={!onRemoveDictationModel}
+                  >
+                    Remove model
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="settings-field">
+          <div className="settings-field-label">ChatGPT auth status</div>
+          <div className="settings-help">
+            {dictationAuthStatus?.authenticated
+              ? "Authenticated. ChatGPT dictation is ready."
+              : dictationAuthStatus?.message ??
+                "Not ready. Connect/select an active workspace and sign in to ChatGPT in Codex."}
+          </div>
         </div>
-      </div>
+      )}
       <div className="settings-field">
         <label className="settings-field-label" htmlFor="dictation-language">
           Preferred dictation language
@@ -168,70 +282,6 @@ export function SettingsDictationSection({
           Hold the key to start dictation, release to stop and process.
         </div>
       </div>
-      {dictationModelStatus && (
-        <div className="settings-field">
-          <div className="settings-field-label">Model status ({selectedDictationModel.label})</div>
-          <div className="settings-help">
-            {dictationModelStatus.state === "ready" && "Ready for dictation."}
-            {dictationModelStatus.state === "missing" && "Model not downloaded yet."}
-            {dictationModelStatus.state === "downloading" && "Downloading model..."}
-            {dictationModelStatus.state === "error" &&
-              (dictationModelStatus.error ?? "Download error.")}
-          </div>
-          {dictationProgress && (
-            <div className="settings-download-progress">
-              <div className="settings-download-bar">
-                <div
-                  className="settings-download-fill"
-                  style={{
-                    width: dictationProgress.totalBytes
-                      ? `${Math.min(
-                          100,
-                          (dictationProgress.downloadedBytes / dictationProgress.totalBytes) * 100,
-                        )}%`
-                      : "0%",
-                  }}
-                />
-              </div>
-              <div className="settings-download-meta">
-                {formatDownloadSize(dictationProgress.downloadedBytes)}
-              </div>
-            </div>
-          )}
-          <div className="settings-field-actions">
-            {dictationModelStatus.state === "missing" && (
-              <button
-                type="button"
-                className="primary"
-                onClick={onDownloadDictationModel}
-                disabled={!onDownloadDictationModel}
-              >
-                Download model
-              </button>
-            )}
-            {dictationModelStatus.state === "downloading" && (
-              <button
-                type="button"
-                className="ghost settings-button-compact"
-                onClick={onCancelDictationDownload}
-                disabled={!onCancelDictationDownload}
-              >
-                Cancel download
-              </button>
-            )}
-            {dictationReady && (
-              <button
-                type="button"
-                className="ghost settings-button-compact"
-                onClick={onRemoveDictationModel}
-                disabled={!onRemoveDictationModel}
-              >
-                Remove model
-              </button>
-            )}
-          </div>
-        </div>
-      )}
     </section>
   );
 }

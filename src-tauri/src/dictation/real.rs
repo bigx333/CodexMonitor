@@ -1,13 +1,18 @@
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine as _;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
+use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::oneshot;
 
+use crate::remote_backend;
+use crate::shared::transcription_chatgpt_core::{self, DictationAuthStatus};
 use crate::state::AppState;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -201,8 +206,16 @@ pub(crate) struct DictationSessionHandle {
     pub(crate) stopped: oneshot::Receiver<()>,
     pub(crate) audio: Arc<Mutex<Vec<f32>>>,
     pub(crate) sample_rate: u32,
-    pub(crate) model_id: String,
+    pub(crate) provider: DictationProvider,
+    pub(crate) model_id: Option<String>,
+    pub(crate) workspace_id: Option<String>,
     pub(crate) preferred_language: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DictationProvider {
+    Local,
+    Chatgpt,
 }
 
 pub(crate) struct DictationState {
@@ -330,6 +343,88 @@ async fn resolve_model_id(state: &State<'_, AppState>, model_id: Option<String>)
     } else {
         DEFAULT_MODEL_ID.to_string()
     }
+}
+
+async fn resolve_dictation_provider(state: &State<'_, AppState>) -> DictationProvider {
+    let settings = state.app_settings.lock().await;
+    if settings.dictation_provider.eq_ignore_ascii_case("chatgpt") {
+        DictationProvider::Chatgpt
+    } else {
+        DictationProvider::Local
+    }
+}
+
+async fn transcribe_chatgpt_dictation(
+    app: &AppHandle,
+    state: &State<'_, AppState>,
+    workspace_id: String,
+    audio: Vec<u8>,
+    language: Option<String>,
+) -> Result<String, String> {
+    if remote_backend::is_remote_mode(&*state).await {
+        let response = remote_backend::call_remote(
+            &*state,
+            app.clone(),
+            "dictation_transcribe",
+            json!({
+                "workspaceId": workspace_id,
+                "audio": STANDARD.encode(audio),
+                "mimeType": "audio/wav",
+                "language": language,
+            }),
+        )
+        .await?;
+
+        return response
+            .get("text")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .ok_or_else(|| "Invalid dictation transcription response.".to_string());
+    }
+
+    transcription_chatgpt_core::dictation_transcribe_chatgpt_core(
+        &state.sessions,
+        workspace_id,
+        audio,
+        "audio/wav".to_string(),
+        language,
+    )
+    .await
+}
+
+fn encode_wav_audio(samples: &[f32], sample_rate: u32) -> Vec<u8> {
+    let channels: u16 = 1;
+    let bits_per_sample: u16 = 16;
+    let bytes_per_sample = (bits_per_sample / 8) as usize;
+    let data_len = samples.len().saturating_mul(bytes_per_sample);
+    let byte_rate = sample_rate
+        .saturating_mul(channels as u32)
+        .saturating_mul(bits_per_sample as u32 / 8);
+    let block_align = channels.saturating_mul(bits_per_sample / 8);
+    let chunk_size = 36u32.saturating_add(data_len as u32);
+
+    let mut out = Vec::with_capacity(44 + data_len);
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&chunk_size.to_le_bytes());
+    out.extend_from_slice(b"WAVE");
+    out.extend_from_slice(b"fmt ");
+    out.extend_from_slice(&16u32.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&channels.to_le_bytes());
+    out.extend_from_slice(&sample_rate.to_le_bytes());
+    out.extend_from_slice(&byte_rate.to_le_bytes());
+    out.extend_from_slice(&block_align.to_le_bytes());
+    out.extend_from_slice(&bits_per_sample.to_le_bytes());
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&(data_len as u32).to_le_bytes());
+
+    for sample in samples {
+        let clamped = sample.clamp(-1.0, 1.0);
+        let scaled = (clamped * i16::MAX as f32).round() as i16;
+        out.extend_from_slice(&scaled.to_le_bytes());
+    }
+
+    out
 }
 
 async fn refresh_status(
@@ -737,22 +832,91 @@ pub(crate) async fn dictation_remove_model(
 }
 
 #[tauri::command]
+pub(crate) async fn dictation_auth_status(
+    workspace_id: Option<String>,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<DictationAuthStatus, String> {
+    let provider = resolve_dictation_provider(&state).await;
+    if provider != DictationProvider::Chatgpt {
+        return Ok(DictationAuthStatus {
+            authenticated: false,
+            auth_method: Some("local".to_string()),
+            account_id: None,
+            message: Some("Local dictation provider is selected.".to_string()),
+        });
+    }
+
+    if remote_backend::is_remote_mode(&*state).await {
+        let response = remote_backend::call_remote(
+            &*state,
+            app,
+            "dictation_auth_status",
+            json!({ "workspaceId": workspace_id }),
+        )
+        .await?;
+        return serde_json::from_value(response).map_err(|error| error.to_string());
+    }
+
+    Ok(transcription_chatgpt_core::dictation_auth_status_core(&state.sessions, workspace_id).await)
+}
+
+#[tauri::command]
 pub(crate) async fn dictation_start(
     preferred_language: Option<String>,
+    workspace_id: Option<String>,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<DictationSessionState, String> {
-    let model_id = resolve_model_id(&state, None).await;
-    let model_status = refresh_status(&app, &state, &model_id).await;
-    if model_status.state != DictationModelState::Ready {
-        let message = "Dictation model is not downloaded yet.".to_string();
-        emit_event(
-            &app,
-            DictationEvent::Error {
-                message: message.clone(),
-            },
-        );
-        return Err(message);
+    let provider = resolve_dictation_provider(&state).await;
+    let model_id = if provider == DictationProvider::Local {
+        let model_id = resolve_model_id(&state, None).await;
+        let model_status = refresh_status(&app, &state, &model_id).await;
+        if model_status.state != DictationModelState::Ready {
+            let message = "Dictation model is not downloaded yet.".to_string();
+            emit_event(
+                &app,
+                DictationEvent::Error {
+                    message: message.clone(),
+                },
+            );
+            return Err(message);
+        }
+        Some(model_id)
+    } else {
+        None
+    };
+
+    let workspace_id = workspace_id
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    if provider == DictationProvider::Chatgpt {
+        let auth = if remote_backend::is_remote_mode(&*state).await {
+            let response = remote_backend::call_remote(
+                &*state,
+                app.clone(),
+                "dictation_auth_status",
+                json!({ "workspaceId": workspace_id.clone() }),
+            )
+            .await?;
+            serde_json::from_value(response).map_err(|error| error.to_string())?
+        } else {
+            transcription_chatgpt_core::dictation_auth_status_core(&state.sessions, workspace_id.clone())
+                .await
+        };
+        if !auth.authenticated {
+            let message = auth
+                .message
+                .unwrap_or_else(|| "ChatGPT dictation is not authenticated.".to_string());
+            emit_event(
+                &app,
+                DictationEvent::Error {
+                    message: message.clone(),
+                },
+            );
+            return Err(message);
+        }
     }
     {
         let dictation = state.dictation.lock().await;
@@ -845,7 +1009,9 @@ pub(crate) async fn dictation_start(
             stopped: stopped_rx,
             audio,
             sample_rate,
-            model_id: model_id.clone(),
+            provider,
+            model_id,
+            workspace_id,
             preferred_language: preferred_clone,
         });
     }
@@ -871,7 +1037,7 @@ pub(crate) async fn dictation_stop(
     state: State<'_, AppState>,
 ) -> Result<DictationSessionState, String> {
     let cancel_flag = Arc::new(AtomicBool::new(false));
-    let (audio, sample_rate, model_id, preferred_language, stopped, stop_tx) = {
+    let (audio, sample_rate, provider, model_id, workspace_id, preferred_language, stopped, stop_tx) = {
         let mut dictation = state.dictation.lock().await;
         if dictation.session_state != DictationSessionState::Listening {
             let message = "Dictation is not currently listening.".to_string();
@@ -892,7 +1058,9 @@ pub(crate) async fn dictation_stop(
         (
             session.audio,
             session.sample_rate,
+            session.provider,
             session.model_id,
+            session.workspace_id,
             session.preferred_language,
             session.stopped,
             session.stop,
@@ -922,6 +1090,84 @@ pub(crate) async fn dictation_stop(
         }
 
         let state_handle = app_handle.state::<AppState>();
+        if provider == DictationProvider::Chatgpt {
+            let Some(workspace_id) = workspace_id else {
+                emit_event(
+                    &app_handle,
+                    DictationEvent::Error {
+                        message: "An active workspace is required for ChatGPT dictation."
+                            .to_string(),
+                    },
+                );
+                clear_processing_cancel(&app_handle, &cancel_flag).await;
+                let mut dictation = state_handle.dictation.lock().await;
+                dictation.session_state = DictationSessionState::Idle;
+                emit_event(
+                    &app_handle,
+                    DictationEvent::State {
+                        state: DictationSessionState::Idle,
+                    },
+                );
+                return;
+            };
+
+            let audio_wav = encode_wav_audio(&samples, sample_rate);
+            let outcome = transcribe_chatgpt_dictation(
+                &app_handle,
+                &state_handle,
+                workspace_id,
+                audio_wav,
+                preferred_language.clone(),
+            )
+            .await;
+
+            if cancel_flag.load(Ordering::Relaxed) {
+                clear_processing_cancel(&app_handle, &cancel_flag).await;
+                return;
+            }
+
+            match outcome {
+                Ok(text) => {
+                    if !text.trim().is_empty() {
+                        emit_event(&app_handle, DictationEvent::Transcript { text });
+                    }
+                }
+                Err(message) => {
+                    emit_event(&app_handle, DictationEvent::Error { message });
+                }
+            }
+
+            clear_processing_cancel(&app_handle, &cancel_flag).await;
+            let mut dictation = state_handle.dictation.lock().await;
+            dictation.session_state = DictationSessionState::Idle;
+            emit_event(
+                &app_handle,
+                DictationEvent::State {
+                    state: DictationSessionState::Idle,
+                },
+            );
+            return;
+        }
+
+        let Some(model_id) = model_id else {
+            emit_event(
+                &app_handle,
+                DictationEvent::Error {
+                    message: "Dictation model is not configured.".to_string(),
+                },
+            );
+            clear_processing_cancel(&app_handle, &cancel_flag).await;
+            let mut dictation = state_handle.dictation.lock().await;
+            dictation.session_state = DictationSessionState::Idle;
+            emit_event(
+                &app_handle,
+                DictationEvent::State {
+                    state: DictationSessionState::Idle,
+                },
+            );
+            return;
+        };
+
         let cached_context = {
             let dictation = state_handle.dictation.lock().await;
             dictation

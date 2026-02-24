@@ -173,6 +173,7 @@ export type RemoteBackendTarget = {
 };
 export type ThemePreference = "system" | "light" | "dark" | "dim";
 export type PersonalityPreference = "friendly" | "pragmatic";
+export type DictationProvider = "local" | "chatgpt";
 export type FollowUpMessageBehavior = "queue" | "steer";
 export type ComposerSendIntent = "default" | "queue" | "steer";
 export type SendMessageResult = {
@@ -259,6 +260,7 @@ export type AppSettings = {
   experimentalAppsEnabled: boolean;
   personality: PersonalityPreference;
   dictationEnabled: boolean;
+  dictationProvider: DictationProvider;
   dictationModelId: string;
   dictationPreferredLanguage: string | null;
   dictationHoldKey: string | null;
@@ -658,6 +660,13 @@ export type DictationModelStatus = {
   progress?: DictationDownloadProgress | null;
   error?: string | null;
   path?: string | null;
+};
+
+export type DictationAuthStatus = {
+  authenticated: boolean;
+  authMethod?: string | null;
+  accountId?: string | null;
+  message?: string | null;
 };
 
 export type DictationSessionState = "idle" | "listening" | "processing";

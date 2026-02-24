@@ -397,6 +397,35 @@ pub(super) async fn try_handle(
             };
             Some(state.account_read(workspace_id).await)
         }
+        "dictation_auth_status" => {
+            let workspace_id = parse_optional_string(params, "workspaceId");
+            Some(
+                state
+                    .dictation_auth_status(workspace_id)
+                    .await
+                    .and_then(|value| serde_json::to_value(value).map_err(|err| err.to_string())),
+            )
+        }
+        "dictation_transcribe" => {
+            let workspace_id = match parse_string(params, "workspaceId") {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            let audio = match parse_string(params, "audio") {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            let mime_type = match parse_string(params, "mimeType") {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            let language = parse_optional_string(params, "language");
+            Some(
+                state
+                    .dictation_transcribe(workspace_id, audio, mime_type, language)
+                    .await,
+            )
+        }
         "codex_login" => {
             let workspace_id = match parse_string(params, "workspaceId") {
                 Ok(value) => value,

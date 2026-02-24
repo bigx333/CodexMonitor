@@ -4,6 +4,7 @@ import type {
   AppSettings,
   CodexDoctorResult,
   CodexUpdateResult,
+  DictationAuthStatus,
   DictationModelStatus,
   WorkspaceSettings,
   WorkspaceGroup,
@@ -60,6 +61,7 @@ export type SettingsViewProps = {
   onTestSystemNotification: () => void;
   onMobileConnectSuccess?: () => Promise<void> | void;
   dictationModelStatus?: DictationModelStatus | null;
+  dictationAuthStatus?: DictationAuthStatus | null;
   onDownloadDictationModel?: () => void;
   onCancelDictationDownload?: () => void;
   onRemoveDictationModel?: () => void;
@@ -92,6 +94,7 @@ export function SettingsView({
   onTestSystemNotification,
   onMobileConnectSuccess,
   dictationModelStatus,
+  dictationAuthStatus,
   onDownloadDictationModel,
   onCancelDictationDownload,
   onRemoveDictationModel,
@@ -130,6 +133,7 @@ export function SettingsView({
     onAssignWorkspaceGroup,
     onMobileConnectSuccess,
     dictationModelStatus,
+    dictationAuthStatus,
     onDownloadDictationModel,
     onCancelDictationDownload,
     onRemoveDictationModel,

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type {
   AppSettings,
+  DictationAuthStatus,
   CodexDoctorResult,
   CodexUpdateResult,
   DictationModelStatus,
@@ -62,6 +63,7 @@ type UseSettingsViewOrchestrationArgs = {
     groupId: string | null,
   ) => Promise<boolean | null>;
   dictationModelStatus?: DictationModelStatus | null;
+  dictationAuthStatus?: DictationAuthStatus | null;
   onDownloadDictationModel?: () => void;
   onCancelDictationDownload?: () => void;
   onRemoveDictationModel?: () => void;
@@ -92,6 +94,7 @@ export function useSettingsViewOrchestration({
   onDeleteWorkspaceGroup,
   onAssignWorkspaceGroup,
   dictationModelStatus,
+  dictationAuthStatus,
   onDownloadDictationModel,
   onCancelDictationDownload,
   onRemoveDictationModel,
@@ -238,6 +241,7 @@ export function useSettingsViewOrchestration({
       dictationModels: DICTATION_MODELS,
       selectedDictationModel,
       dictationModelStatus,
+      dictationAuthStatus,
       dictationReady,
       onUpdateAppSettings,
       onDownloadDictationModel,

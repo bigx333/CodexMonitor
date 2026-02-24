@@ -41,6 +41,15 @@ pub(crate) enum DictationSessionState {
     Processing,
 }
 
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DictationAuthStatus {
+    pub(crate) authenticated: bool,
+    pub(crate) auth_method: Option<String>,
+    pub(crate) account_id: Option<String>,
+    pub(crate) message: Option<String>,
+}
+
 pub(crate) struct DictationState {
     pub(crate) model_status: DictationModelStatus,
     pub(crate) session_state: DictationSessionState,
@@ -104,8 +113,23 @@ pub(crate) async fn dictation_remove_model(
 }
 
 #[tauri::command]
+pub(crate) async fn dictation_auth_status(
+    _workspace_id: Option<String>,
+    _app: AppHandle,
+    _state: State<'_, AppState>,
+) -> Result<DictationAuthStatus, String> {
+    Ok(DictationAuthStatus {
+        authenticated: false,
+        auth_method: None,
+        account_id: None,
+        message: Some(UNSUPPORTED_MESSAGE.to_string()),
+    })
+}
+
+#[tauri::command]
 pub(crate) async fn dictation_start(
     _preferred_language: Option<String>,
+    _workspace_id: Option<String>,
     _app: AppHandle,
     _state: State<'_, AppState>,
 ) -> Result<DictationSessionState, String> {

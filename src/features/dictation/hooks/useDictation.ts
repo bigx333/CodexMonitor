@@ -13,7 +13,7 @@ type UseDictationResult = {
   transcript: DictationTranscript | null;
   error: string | null;
   hint: string | null;
-  start: (preferredLanguage: string | null) => Promise<void>;
+  start: (preferredLanguage: string | null, workspaceId?: string | null) => Promise<void>;
   stop: () => Promise<void>;
   cancel: () => Promise<void>;
   clearTranscript: (id: string) => void;
@@ -80,10 +80,10 @@ export function useDictation(): UseDictationResult {
     };
   }, []);
 
-  const start = useCallback(async (preferredLanguage: string | null) => {
+  const start = useCallback(async (preferredLanguage: string | null, workspaceId?: string | null) => {
     setError(null);
     setHint(null);
-    await startDictation(preferredLanguage);
+    await startDictation(preferredLanguage, workspaceId);
   }, []);
 
   const stop = useCallback(async () => {

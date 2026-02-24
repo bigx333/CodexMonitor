@@ -150,6 +150,7 @@ fn can_retry_after_disconnect(method: &str) -> bool {
             | "apps_list"
             | "collaboration_mode_list"
             | "connect_workspace"
+            | "dictation_auth_status"
             | "experimental_feature_list"
             | "set_workspace_runtime_codex_args"
             | "file_read"

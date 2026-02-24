@@ -582,6 +582,8 @@ pub(crate) struct AppSettings {
     pub(crate) personality: String,
     #[serde(default = "default_dictation_enabled", rename = "dictationEnabled")]
     pub(crate) dictation_enabled: bool,
+    #[serde(default = "default_dictation_provider", rename = "dictationProvider")]
+    pub(crate) dictation_provider: String,
     #[serde(default = "default_dictation_model_id", rename = "dictationModelId")]
     pub(crate) dictation_model_id: String,
     #[serde(default, rename = "dictationPreferredLanguage")]
@@ -939,6 +941,10 @@ fn default_dictation_enabled() -> bool {
     false
 }
 
+fn default_dictation_provider() -> String {
+    "local".to_string()
+}
+
 fn default_dictation_model_id() -> String {
     "base".to_string()
 }
@@ -1167,6 +1173,7 @@ impl Default for AppSettings {
             experimental_apps_enabled: false,
             personality: default_personality(),
             dictation_enabled: false,
+            dictation_provider: default_dictation_provider(),
             dictation_model_id: default_dictation_model_id(),
             dictation_preferred_language: None,
             dictation_hold_key: default_dictation_hold_key(),
@@ -1329,6 +1336,7 @@ mod tests {
         assert!(!settings.experimental_apps_enabled);
         assert_eq!(settings.personality, "friendly");
         assert!(!settings.dictation_enabled);
+        assert_eq!(settings.dictation_provider, "local");
         assert_eq!(settings.dictation_model_id, "base");
         assert!(settings.dictation_preferred_language.is_none());
         assert_eq!(settings.dictation_hold_key, "alt");

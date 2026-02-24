@@ -5,6 +5,7 @@ import type {
   AppSettings,
   CodexUpdateResult,
   CodexDoctorResult,
+  DictationAuthStatus,
   DictationModelStatus,
   DictationSessionState,
   LocalUsageSnapshot,
@@ -1073,10 +1074,17 @@ export async function removeDictationModel(
   );
 }
 
+export async function getDictationAuthStatus(
+  workspaceId?: string | null,
+): Promise<DictationAuthStatus> {
+  return invoke<DictationAuthStatus>("dictation_auth_status", { workspaceId });
+}
+
 export async function startDictation(
   preferredLanguage: string | null,
+  workspaceId?: string | null,
 ): Promise<DictationSessionState> {
-  return invoke("dictation_start", { preferredLanguage });
+  return invoke("dictation_start", { preferredLanguage, workspaceId });
 }
 
 export async function requestDictationPermission(): Promise<boolean> {
