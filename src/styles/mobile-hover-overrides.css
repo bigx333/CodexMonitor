@@ -1,0 +1,47 @@
+@media (hover: none), (pointer: coarse) {
+  /* Reveal controls that are hover-gated on desktop. */
+  .workspace-group-header-all-threads .all-threads-add,
+  .workspace-group-header .group-toggle,
+  .workspace-row .workspace-add,
+  .workspace-row .workspace-toggle,
+  .worktree-row .workspace-add,
+  .worktree-row .worktree-toggle,
+  .file-tree-row-wrap .file-tree-action {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .workspace-group-header-all-threads .all-threads-add:disabled {
+    opacity: 0.5;
+  }
+
+  /* Touch fallback: row tap selects, selected row exposes file actions. */
+  .diff-row.selected .diff-row-actions,
+  .diff-row.active .diff-row-actions {
+    max-width: 96px;
+    margin-left: 6px;
+    opacity: 1;
+    pointer-events: auto;
+    overflow: visible;
+    transform: translateX(0);
+  }
+
+  .diff-row.selected .diff-row-action,
+  .diff-row.active .diff-row-action {
+    color: var(--text-muted);
+  }
+
+  /* Message actions cannot rely on hover in touch environments. */
+  .message .message-copy-button,
+  .message .message-quote-button {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Worktree model count submenu should open from tap selection too. */
+  .workspace-home-model-option.is-active .workspace-home-model-submenu {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+}
