@@ -181,6 +181,17 @@ pub(super) async fn try_handle(
                     .await,
             )
         }
+        "run_bang_command" => {
+            let workspace_id = match parse_string(params, "workspaceId") {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            let command = match parse_string(params, "command") {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            Some(state.run_bang_command(workspace_id, command).await)
+        }
         "turn_interrupt" => {
             let workspace_id = match parse_string(params, "workspaceId") {
                 Ok(value) => value,

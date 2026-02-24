@@ -809,6 +809,9 @@ export function buildConversationItem(
   if (type === "userMessage") {
     const content = Array.isArray(item.content) ? item.content : [];
     const { text, images } = parseUserInputs(content);
+    if (!text && images.length === 0) {
+      return null;
+    }
     return {
       id,
       kind: "message",
@@ -1045,6 +1048,17 @@ function extractImageInputValue(input: Record<string, unknown>) {
   return value.trim();
 }
 
+function stripUserShellCommandBlocks(text: string) {
+  if (!text) {
+    return "";
+  }
+  const stripped = text.replace(
+    /<user_shell_command>[\s\S]*?<\/user_shell_command>/gi,
+    " ",
+  );
+  return stripped.replace(/\s+/g, " ").trim();
+}
+
 function parseUserInputs(inputs: Array<Record<string, unknown>>) {
   const textParts: string[] = [];
   const images: string[] = [];
@@ -1071,7 +1085,7 @@ function parseUserInputs(inputs: Array<Record<string, unknown>>) {
       }
     }
   });
-  return { text: textParts.join(" ").trim(), images };
+  return { text: stripUserShellCommandBlocks(textParts.join(" ").trim()), images };
 }
 
 export function buildConversationItemFromThreadItem(
@@ -1085,6 +1099,9 @@ export function buildConversationItemFromThreadItem(
   if (type === "userMessage") {
     const content = Array.isArray(item.content) ? item.content : [];
     const { text, images } = parseUserInputs(content);
+    if (!text && images.length === 0) {
+      return null;
+    }
     return {
       id,
       kind: "message",

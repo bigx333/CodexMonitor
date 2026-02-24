@@ -27,6 +27,7 @@ import {
   respondToServerRequest,
   respondToUserInputRequest,
   sendUserMessage,
+  runBangCommand,
   steerTurn,
   sendNotification,
   setCodexFeatureFlag,
@@ -627,6 +628,18 @@ describe("tauri invoke wrappers", () => {
       effort: null,
       accessMode: "full-access",
       images: ["image.png"],
+    });
+  });
+
+  it("maps workspaceId/command for run_bang_command", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({ exitCode: 0, stdout: "ok", stderr: "" });
+
+    await runBangCommand("ws-4", "ls -la");
+
+    expect(invokeMock).toHaveBeenCalledWith("run_bang_command", {
+      workspaceId: "ws-4",
+      command: "ls -la",
     });
   });
 

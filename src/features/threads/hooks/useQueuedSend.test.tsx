@@ -27,6 +27,7 @@ const makeOptions = (
   startThreadForWorkspace: vi.fn().mockResolvedValue("thread-1"),
   sendUserMessage: vi.fn().mockResolvedValue({ status: "sent" }),
   sendUserMessageToThread: vi.fn().mockResolvedValue(undefined),
+  runBangCommand: vi.fn().mockResolvedValue(undefined),
   startFork: vi.fn().mockResolvedValue(undefined),
   startReview: vi.fn().mockResolvedValue(undefined),
   startResume: vi.fn().mockResolvedValue(undefined),
@@ -151,6 +152,65 @@ describe("useQueuedSend", () => {
     expect(options.sendUserMessage).not.toHaveBeenCalled();
     expect(result.current.activeQueue).toHaveLength(1);
     expect(result.current.activeQueue[0]?.text).toBe("Wait for turn");
+  });
+
+  it("routes !commands to local execution and strips images/mentions", async () => {
+    const runBangCommand = vi.fn().mockResolvedValue(undefined);
+    const options = makeOptions({ runBangCommand });
+    const { result } = renderHook((props) => useQueuedSend(props), {
+      initialProps: options,
+    });
+
+    await act(async () => {
+      await result.current.handleSend("!ls -la", ["img-1"], [
+        { name: "demo", path: "app://demo" },
+      ]);
+    });
+
+    expect(runBangCommand).toHaveBeenCalledWith("!ls -la");
+    expect(options.sendUserMessage).not.toHaveBeenCalled();
+    expect(result.current.activeQueue).toHaveLength(0);
+  });
+
+  it("queues !commands while processing even when steer is enabled", async () => {
+    const runBangCommand = vi.fn().mockResolvedValue(undefined);
+    const options = makeOptions({
+      isProcessing: true,
+      steerEnabled: true,
+      followUpMessageBehavior: "steer",
+      runBangCommand,
+    });
+    const { result } = renderHook((props) => useQueuedSend(props), {
+      initialProps: options,
+    });
+
+    await act(async () => {
+      await result.current.handleSend("!pwd");
+    });
+
+    expect(runBangCommand).not.toHaveBeenCalled();
+    expect(options.sendUserMessage).not.toHaveBeenCalled();
+    expect(result.current.activeQueue).toHaveLength(1);
+    expect(result.current.activeQueue[0]?.text).toBe("!pwd");
+  });
+
+  it("flushes queued !commands through runBangCommand", async () => {
+    const runBangCommand = vi.fn().mockResolvedValue(undefined);
+    const options = makeOptions({ runBangCommand });
+    const { result } = renderHook((props) => useQueuedSend(props), {
+      initialProps: options,
+    });
+
+    await act(async () => {
+      await result.current.queueMessage("!echo hi");
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(runBangCommand).toHaveBeenCalledWith("!echo hi");
+    expect(options.sendUserMessage).not.toHaveBeenCalled();
   });
 
   it("queues the message when a forced steer attempt fails", async () => {

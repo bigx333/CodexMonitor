@@ -460,6 +460,13 @@ export async function sendUserMessage(
   return invoke("send_user_message", payload);
 }
 
+export async function runBangCommand(
+  workspaceId: string,
+  command: string,
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return invoke("run_bang_command", { workspaceId, command });
+}
+
 export async function interruptTurn(
   workspaceId: string,
   threadId: string,

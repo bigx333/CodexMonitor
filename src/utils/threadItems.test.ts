@@ -652,6 +652,38 @@ describe("threadItems", () => {
     }
   });
 
+  it("strips hidden user shell command context from user messages", () => {
+    const item = buildConversationItemFromThreadItem({
+      type: "userMessage",
+      id: "msg-shell-1",
+      content: [
+        {
+          type: "text",
+          text:
+            "<user_shell_command><command>ls</command><result>Exit code: 0</result></user_shell_command> real question",
+        },
+      ],
+    });
+    expect(item).not.toBeNull();
+    if (item && item.kind === "message") {
+      expect(item.text).toBe("real question");
+    }
+  });
+
+  it("drops user messages that only contain hidden user shell command context", () => {
+    const item = buildConversationItem({
+      type: "userMessage",
+      id: "msg-shell-only-1",
+      content: [
+        {
+          type: "text",
+          text: "<user_shell_command><command>ls</command></user_shell_command>",
+        },
+      ],
+    });
+    expect(item).toBeNull();
+  });
+
   it("keeps image-only user messages without placeholder text", () => {
     const item = buildConversationItemFromThreadItem({
       type: "userMessage",

@@ -25,6 +25,7 @@ export function useComposerController({
   startThreadForWorkspace,
   sendUserMessage,
   sendUserMessageToThread,
+  runBangCommand,
   startFork,
   startReview,
   startResume,
@@ -60,6 +61,7 @@ export function useComposerController({
     text: string,
     images?: string[],
   ) => Promise<void | SendMessageResult>;
+  runBangCommand: (text: string) => Promise<void>;
   startFork: (text: string) => Promise<void>;
   startReview: (text: string) => Promise<void>;
   startResume: (text: string) => Promise<void>;
@@ -105,6 +107,7 @@ export function useComposerController({
     startThreadForWorkspace,
     sendUserMessage,
     sendUserMessageToThread,
+    runBangCommand,
     startFork,
     startReview,
     startResume,

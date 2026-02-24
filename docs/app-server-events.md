@@ -127,6 +127,7 @@ These are v2 request methods CodexMonitor currently sends to Codex app-server:
 - `turn/start`
 - `turn/steer` (used for explicit steer follow-ups while a turn is active)
 - `turn/interrupt`
+- `command/exec`
 - `review/start`
 - `model/list`
 - `experimentalFeature/list`
@@ -156,7 +157,6 @@ Compared against Codex v2 request methods, CodexMonitor currently does not send:
 - `config/mcpServer/reload`
 - `account/logout`
 - `feedback/upload`
-- `command/exec`
 - `config/read`
 - `config/value/write`
 - `config/batchWrite`

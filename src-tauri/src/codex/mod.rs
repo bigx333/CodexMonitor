@@ -376,6 +376,27 @@ pub(crate) async fn send_user_message(
 }
 
 #[tauri::command]
+pub(crate) async fn run_bang_command(
+    workspace_id: String,
+    command: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Value, String> {
+    if remote_backend::is_remote_mode(&*state).await {
+        return remote_backend::call_remote(
+            &*state,
+            app,
+            "run_bang_command",
+            json!({ "workspaceId": workspace_id, "command": command }),
+        )
+        .await;
+    }
+
+    codex_core::run_bang_command_core(&state.sessions, &state.workspaces, workspace_id, command)
+        .await
+}
+
+#[tauri::command]
 pub(crate) async fn turn_steer(
     workspace_id: String,
     thread_id: String,

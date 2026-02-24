@@ -702,6 +702,7 @@ export function useThreads({
 
   const {
     interruptTurn,
+    runBangCommand,
     sendUserMessage,
     sendUserMessageToThread,
     startFork,
@@ -856,6 +857,7 @@ export function useThreads({
     refreshAccountRateLimits,
     refreshAccountInfo,
     interruptTurn,
+    runBangCommand,
     removeThread,
     pinThread,
     unpinThread,

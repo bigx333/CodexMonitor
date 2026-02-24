@@ -842,6 +842,15 @@ impl DaemonState {
         .await
     }
 
+    async fn run_bang_command(
+        &self,
+        workspace_id: String,
+        command: String,
+    ) -> Result<Value, String> {
+        codex_core::run_bang_command_core(&self.sessions, &self.workspaces, workspace_id, command)
+            .await
+    }
+
     async fn turn_steer(
         &self,
         workspace_id: String,

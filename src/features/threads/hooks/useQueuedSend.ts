@@ -35,6 +35,7 @@ type UseQueuedSendOptions = {
     text: string,
     images?: string[],
   ) => Promise<void | SendMessageResult>;
+  runBangCommand: (text: string) => Promise<void>;
   startFork: (text: string) => Promise<void>;
   startReview: (text: string) => Promise<void>;
   startResume: (text: string) => Promise<void>;
@@ -100,6 +101,10 @@ function parseSlashCommand(text: string, appsEnabled: boolean): SlashCommandKind
   return null;
 }
 
+function isBangCommand(text: string) {
+  return text.startsWith("!");
+}
+
 export function useQueuedSend({
   activeThreadId,
   activeTurnId,
@@ -114,6 +119,7 @@ export function useQueuedSend({
   startThreadForWorkspace,
   sendUserMessage,
   sendUserMessageToThread,
+  runBangCommand,
   startFork,
   startReview,
   startResume,
@@ -235,9 +241,10 @@ export function useQueuedSend({
       submitIntent: ComposerSendIntent = "default",
     ) => {
       const trimmed = text.trim();
-      const command = parseSlashCommand(trimmed, appsEnabled);
-      const nextImages = command ? [] : images;
-      const nextMentions = command ? [] : appMentions;
+      const bangCommand = isBangCommand(trimmed);
+      const command = bangCommand ? null : parseSlashCommand(trimmed, appsEnabled);
+      const nextImages = command || bangCommand ? [] : images;
+      const nextMentions = command || bangCommand ? [] : appMentions;
       const canSteerCurrentTurn =
         isProcessing && steerEnabled && Boolean(activeTurnId);
       const effectiveIntent: ComposerSendIntent = !isProcessing
@@ -257,7 +264,11 @@ export function useQueuedSend({
       if (activeThreadId && isReviewing) {
         return;
       }
-      if (isProcessing && activeThreadId && effectiveIntent === "queue") {
+      if (
+        isProcessing &&
+        activeThreadId &&
+        (effectiveIntent === "queue" || bangCommand)
+      ) {
         const item = createQueuedItem(trimmed, nextImages, nextMentions);
         enqueueMessage(activeThreadId, item);
         clearActiveImages();
@@ -265,6 +276,11 @@ export function useQueuedSend({
       }
       if (activeWorkspace && !activeWorkspace.connected) {
         await connectWorkspace(activeWorkspace);
+      }
+      if (bangCommand) {
+        await runBangCommand(trimmed);
+        clearActiveImages();
+        return;
       }
       if (command) {
         await runSlashCommand(command, trimmed);
@@ -302,6 +318,7 @@ export function useQueuedSend({
       isReviewing,
       steerEnabled,
       runSlashCommand,
+      runBangCommand,
       sendUserMessage,
     ],
   );
@@ -313,9 +330,10 @@ export function useQueuedSend({
       appMentions: AppMention[] = [],
     ) => {
       const trimmed = text.trim();
-      const command = parseSlashCommand(trimmed, appsEnabled);
-      const nextImages = command ? [] : images;
-      const nextMentions = command ? [] : appMentions;
+      const bangCommand = isBangCommand(trimmed);
+      const command = bangCommand ? null : parseSlashCommand(trimmed, appsEnabled);
+      const nextImages = command || bangCommand ? [] : images;
+      const nextMentions = command || bangCommand ? [] : appMentions;
       if (!trimmed && nextImages.length === 0) {
         return;
       }
@@ -390,8 +408,11 @@ export function useQueuedSend({
     (async () => {
       try {
         const trimmed = nextItem.text.trim();
-        const command = parseSlashCommand(trimmed, appsEnabled);
-        if (command) {
+        const bangCommand = isBangCommand(trimmed);
+        const command = bangCommand ? null : parseSlashCommand(trimmed, appsEnabled);
+        if (bangCommand) {
+          await runBangCommand(trimmed);
+        } else if (command) {
           await runSlashCommand(command, trimmed);
         } else {
           const queuedMentions = nextItem.appMentions ?? [];
@@ -416,6 +437,7 @@ export function useQueuedSend({
     queueFlushPaused,
     prependQueuedMessage,
     queuedByThread,
+    runBangCommand,
     runSlashCommand,
     sendUserMessage,
   ]);

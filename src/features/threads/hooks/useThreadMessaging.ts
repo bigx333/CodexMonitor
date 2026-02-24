@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { Dispatch, MutableRefObject } from "react";
 import * as Sentry from "@sentry/react";
 import type {
@@ -14,6 +14,7 @@ import type {
 } from "@/types";
 import {
   compactThread as compactThreadService,
+  runBangCommand as runBangCommandService,
   sendUserMessage as sendUserMessageService,
   steerTurn as steerTurnService,
   startReview as startReviewService,
@@ -104,6 +105,40 @@ function isStaleSteerTurnError(message: string): boolean {
   return normalized.includes("active turn") && normalized.includes("not found");
 }
 
+type BangCommandResult = {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+};
+
+function aggregateBangOutput(result: BangCommandResult): string {
+  if (result.stdout && result.stderr) {
+    return `${result.stdout}\n${result.stderr}`;
+  }
+  return result.stdout || result.stderr || "";
+}
+
+function formatUserShellRecord(
+  command: string,
+  result: BangCommandResult,
+  durationMs: number,
+): string {
+  const seconds = Math.max(0, durationMs / 1000);
+  return [
+    "<user_shell_command>",
+    "<command>",
+    command,
+    "</command>",
+    "<result>",
+    `Exit code: ${result.exitCode}`,
+    `Duration: ${seconds.toFixed(4)} seconds`,
+    "Output:",
+    aggregateBangOutput(result),
+    "</result>",
+    "</user_shell_command>",
+  ].join("\n");
+}
+
 export function useThreadMessaging({
   activeWorkspace,
   activeThreadId,
@@ -136,6 +171,8 @@ export function useThreadMessaging({
   updateThreadParent,
   registerDetachedReviewChild,
 }: UseThreadMessagingOptions) {
+  const pendingBangContextByThreadRef = useRef<Record<string, string[]>>({});
+
   const sendMessageToThread = useCallback(
     async (
       workspace: WorkspaceInfo,
@@ -157,6 +194,17 @@ export function useThreadMessaging({
           return { status: "blocked" };
         }
         finalText = promptExpansion?.expanded ?? messageText;
+      }
+      const pendingBangRecords = pendingBangContextByThreadRef.current[threadId] ?? [];
+      let injectedBangRecords: string[] = [];
+      let requestText = finalText;
+      if (pendingBangRecords.length > 0) {
+        injectedBangRecords = [...pendingBangRecords];
+        delete pendingBangContextByThreadRef.current[threadId];
+        const hiddenContext = injectedBangRecords.join("\n\n");
+        requestText = requestText
+          ? `${hiddenContext}\n\n${requestText}`
+          : hiddenContext;
       }
       const resolvedModel =
         options?.model !== undefined ? options.model : model;
@@ -192,7 +240,7 @@ export function useThreadMessaging({
           workspace_id: workspace.id,
           thread_id: threadId,
           has_images: images.length > 0 ? "true" : "false",
-          text_length: String(finalText.length),
+          text_length: String(requestText.length),
           model: resolvedModel ?? "unknown",
           effort: resolvedEffort ?? "unknown",
           collaboration_mode: sanitizedCollaborationMode ?? "unknown",
@@ -219,7 +267,7 @@ export function useThreadMessaging({
           workspaceId: workspace.id,
           threadId,
           turnId: activeTurnId,
-          text: finalText,
+          text: requestText,
           images,
           model: resolvedModel,
           effort: resolvedEffort,
@@ -229,6 +277,15 @@ export function useThreadMessaging({
         },
       });
       const requestMode: "start" | "steer" = shouldSteer ? "steer" : "start";
+      const restoreInjectedBangRecords = () => {
+        if (injectedBangRecords.length === 0) {
+          return;
+        }
+        pendingBangContextByThreadRef.current[threadId] = [
+          ...injectedBangRecords,
+          ...(pendingBangContextByThreadRef.current[threadId] ?? []),
+        ];
+      };
       try {
         const shouldPreflightRuntimeCodexArgs =
           shouldPreflightRuntimeCodexArgsForSend?.(workspace.id, threadId) ?? true;
@@ -260,7 +317,7 @@ export function useThreadMessaging({
           return sendUserMessageService(
             workspace.id,
             threadId,
-            finalText,
+            requestText,
             payload,
           );
         };
@@ -271,7 +328,7 @@ export function useThreadMessaging({
               workspace.id,
               threadId,
               activeTurnId ?? "",
-              finalText,
+              requestText,
               images,
               appMentions,
             )
@@ -279,7 +336,7 @@ export function useThreadMessaging({
               workspace.id,
               threadId,
               activeTurnId ?? "",
-              finalText,
+              requestText,
               images,
             ))) as Record<string, unknown>
           : (await startTurn()) as Record<string, unknown>;
@@ -299,6 +356,7 @@ export function useThreadMessaging({
             setActiveTurnId(threadId, null);
             pushThreadErrorMessage(threadId, `Turn failed to start: ${rpcError}`);
             safeMessageActivity();
+            restoreInjectedBangRecords();
             return { status: "blocked" };
           }
           if (isStaleSteerTurnError(rpcError)) {
@@ -310,6 +368,7 @@ export function useThreadMessaging({
             `Turn steer failed: ${rpcError}`,
           );
           safeMessageActivity();
+          restoreInjectedBangRecords();
           return { status: "steer_failed" };
         }
         if (requestMode === "steer") {
@@ -330,6 +389,7 @@ export function useThreadMessaging({
           setActiveTurnId(threadId, null);
           pushThreadErrorMessage(threadId, "Turn failed to start.");
           safeMessageActivity();
+          restoreInjectedBangRecords();
           return { status: "blocked" };
         }
         setActiveTurnId(threadId, turnId);
@@ -357,6 +417,7 @@ export function useThreadMessaging({
             : errorMessage,
         );
         safeMessageActivity();
+        restoreInjectedBangRecords();
         return { status: requestMode === "steer" ? "steer_failed" : "blocked" };
       }
     },
@@ -369,6 +430,7 @@ export function useThreadMessaging({
       ensureWorkspaceRuntimeCodexArgs,
       shouldPreflightRuntimeCodexArgsForSend,
       activeTurnIdByThread,
+      getCustomName,
       markProcessing,
       model,
       onDebug,
@@ -431,6 +493,127 @@ export function useThreadMessaging({
       pushThreadErrorMessage,
       safeMessageActivity,
       sendMessageToThread,
+    ],
+  );
+
+  const runBangCommand = useCallback(
+    async (text: string) => {
+      if (!activeWorkspace) {
+        return;
+      }
+      const trimmed = text.trim();
+      const command = trimmed.replace(/^!/, "").trim();
+      if (!command) {
+        const threadId = activeThreadId ?? (await ensureThreadForActiveWorkspace());
+        if (threadId) {
+          pushThreadErrorMessage(threadId, "Prefix a command with ! (example: !ls).");
+          safeMessageActivity();
+        }
+        return;
+      }
+
+      const threadId = activeThreadId ?? (await ensureThreadForActiveWorkspace());
+      if (!threadId) {
+        return;
+      }
+
+      const timestamp = Date.now();
+      recordThreadActivity(activeWorkspace.id, threadId, timestamp);
+      dispatch({
+        type: "setThreadTimestamp",
+        workspaceId: activeWorkspace.id,
+        threadId,
+        timestamp,
+      });
+
+      const startedAt = performance.now();
+      onDebug?.({
+        id: `${Date.now()}-client-command-exec`,
+        timestamp: Date.now(),
+        source: "client",
+        label: "command/exec",
+        payload: { workspaceId: activeWorkspace.id, threadId, command },
+      });
+
+      try {
+        const response = await runBangCommandService(activeWorkspace.id, command);
+        const responseRecord = response as Record<string, unknown>;
+        const rpcError = extractRpcErrorMessage(responseRecord);
+        if (rpcError) {
+          pushThreadErrorMessage(threadId, `Command failed: ${rpcError}`);
+          safeMessageActivity();
+          return;
+        }
+
+        const result = (responseRecord.result ?? responseRecord) as Record<string, unknown>;
+        const exitCodeRaw = result?.exitCode ?? result?.exit_code;
+        const parsedExitCode =
+          typeof exitCodeRaw === "number"
+            ? exitCodeRaw
+            : Number.parseInt(asString(exitCodeRaw ?? ""), 10);
+        if (!Number.isFinite(parsedExitCode)) {
+          pushThreadErrorMessage(threadId, "Command failed: missing exit code.");
+          safeMessageActivity();
+          return;
+        }
+
+        const commandResult: BangCommandResult = {
+          exitCode: parsedExitCode,
+          stdout: asString(result?.stdout ?? ""),
+          stderr: asString(result?.stderr ?? ""),
+        };
+        const output = aggregateBangOutput(commandResult);
+        const durationMs = Math.max(0, performance.now() - startedAt);
+        const itemId = `local-bang-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        dispatch({
+          type: "upsertItem",
+          workspaceId: activeWorkspace.id,
+          threadId,
+          item: {
+            id: itemId,
+            kind: "tool",
+            toolType: "commandExecution",
+            title: `Command: ${command}`,
+            detail: activeWorkspace.path,
+            status: commandResult.exitCode === 0 ? "completed" : "failed",
+            output,
+            durationMs,
+          },
+        });
+        pendingBangContextByThreadRef.current[threadId] = [
+          ...(pendingBangContextByThreadRef.current[threadId] ?? []),
+          formatUserShellRecord(command, commandResult, durationMs),
+        ];
+        onDebug?.({
+          id: `${Date.now()}-server-command-exec`,
+          timestamp: Date.now(),
+          source: "server",
+          label: "command/exec response",
+          payload: responseRecord,
+        });
+        safeMessageActivity();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        pushThreadErrorMessage(threadId, `Command failed: ${message}`);
+        onDebug?.({
+          id: `${Date.now()}-client-command-exec-error`,
+          timestamp: Date.now(),
+          source: "error",
+          label: "command/exec error",
+          payload: message,
+        });
+        safeMessageActivity();
+      }
+    },
+    [
+      activeThreadId,
+      activeWorkspace,
+      dispatch,
+      ensureThreadForActiveWorkspace,
+      onDebug,
+      pushThreadErrorMessage,
+      recordThreadActivity,
+      safeMessageActivity,
     ],
   );
 
@@ -1027,6 +1210,7 @@ export function useThreadMessaging({
 
   return {
     interruptTurn,
+    runBangCommand,
     sendUserMessage,
     sendUserMessageToThread,
     startFork,

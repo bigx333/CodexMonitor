@@ -836,6 +836,7 @@ describe("useThreads UX integration", () => {
         startThreadForWorkspace: threads.startThreadForWorkspace,
         sendUserMessage: threads.sendUserMessage,
         sendUserMessageToThread: threads.sendUserMessageToThread,
+        runBangCommand: threads.runBangCommand,
         startFork: threads.startFork,
         startReview: threads.startReview,
         startResume: threads.startResume,

@@ -19,6 +19,7 @@ use crate::shared::account::{build_account_response, read_auth_account};
 use crate::types::WorkspaceEntry;
 
 const LOGIN_START_TIMEOUT: Duration = Duration::from_secs(30);
+const BANG_COMMAND_TIMEOUT_MS: u64 = 60 * 60 * 1000;
 #[allow(dead_code)]
 const MAX_INLINE_IMAGE_BYTES: u64 = 50 * 1024 * 1024;
 
@@ -369,6 +370,52 @@ fn build_turn_input_items(
     Ok(input)
 }
 
+#[cfg(target_os = "windows")]
+fn build_bang_command_args(command: &str) -> Vec<String> {
+    let shell = std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string());
+    vec![shell, "/C".to_string(), command.to_string()]
+}
+
+#[cfg(not(target_os = "windows"))]
+fn build_bang_command_args(command: &str) -> Vec<String> {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    vec![shell, "-lc".to_string(), command.to_string()]
+}
+
+fn parse_bang_command_result(response: &Value) -> Result<Value, String> {
+    if let Some(error) = response.get("error") {
+        let message = error
+            .get("message")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| "Command execution failed".to_string());
+        return Err(message);
+    }
+
+    let payload = response.get("result").unwrap_or(response);
+    let exit_code = payload
+        .get("exitCode")
+        .or_else(|| payload.get("exit_code"))
+        .and_then(Value::as_i64)
+        .ok_or_else(|| "missing exitCode in command/exec response".to_string())?;
+    let stdout = payload
+        .get("stdout")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let stderr = payload
+        .get("stderr")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+
+    Ok(json!({
+        "exitCode": exit_code,
+        "stdout": stdout,
+        "stderr": stderr,
+    }))
+}
+
 pub(crate) async fn send_user_message_core(
     sessions: &Mutex<HashMap<String, Arc<WorkspaceSession>>>,
     workspaces: &Mutex<HashMap<String, WorkspaceEntry>>,
@@ -419,6 +466,32 @@ pub(crate) async fn send_user_message_core(
     session
         .send_request_for_workspace(&workspace_id, "turn/start", Value::Object(params))
         .await
+}
+
+pub(crate) async fn run_bang_command_core(
+    sessions: &Mutex<HashMap<String, Arc<WorkspaceSession>>>,
+    workspaces: &Mutex<HashMap<String, WorkspaceEntry>>,
+    workspace_id: String,
+    command: String,
+) -> Result<Value, String> {
+    let trimmed = command.trim();
+    if trimmed.is_empty() {
+        return Err("empty command".to_string());
+    }
+
+    let session = get_session_clone(sessions, &workspace_id).await?;
+    let workspace_path = resolve_workspace_path_core(workspaces, &workspace_id).await?;
+    let params = json!({
+        "command": build_bang_command_args(trimmed),
+        "cwd": workspace_path,
+        "timeoutMs": BANG_COMMAND_TIMEOUT_MS,
+        "sandboxPolicy": { "type": "dangerFullAccess" },
+    });
+
+    let response = session
+        .send_request_for_workspace(&workspace_id, "command/exec", params)
+        .await?;
+    parse_bang_command_result(&response)
 }
 
 pub(crate) async fn turn_steer_core(
@@ -809,6 +882,54 @@ mod tests {
             normalize_file_path("  /tmp/image.png  "),
             "/tmp/image.png"
         );
+    }
+
+    #[test]
+    fn parse_bang_command_result_handles_success_result_wrapper() {
+        let response = json!({
+            "id": 10,
+            "result": {
+                "exitCode": 0,
+                "stdout": "ok",
+                "stderr": ""
+            }
+        });
+        let parsed = parse_bang_command_result(&response).expect("parse response");
+        assert_eq!(
+            parsed,
+            json!({
+                "exitCode": 0,
+                "stdout": "ok",
+                "stderr": ""
+            })
+        );
+    }
+
+    #[test]
+    fn parse_bang_command_result_handles_top_level_shape() {
+        let response = json!({
+            "exitCode": 2,
+            "stdout": "",
+            "stderr": "bad"
+        });
+        let parsed = parse_bang_command_result(&response).expect("parse response");
+        assert_eq!(
+            parsed,
+            json!({
+                "exitCode": 2,
+                "stdout": "",
+                "stderr": "bad"
+            })
+        );
+    }
+
+    #[test]
+    fn parse_bang_command_result_surfaces_rpc_error() {
+        let response = json!({
+            "error": { "message": "denied" }
+        });
+        let err = parse_bang_command_result(&response).expect_err("expected error");
+        assert_eq!(err, "denied");
     }
 
     #[test]

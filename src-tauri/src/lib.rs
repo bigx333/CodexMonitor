@@ -208,6 +208,7 @@ pub fn run() {
             workspaces::set_workspace_runtime_codex_args,
             codex::start_thread,
             codex::send_user_message,
+            codex::run_bang_command,
             codex::turn_steer,
             codex::turn_interrupt,
             codex::start_review,
