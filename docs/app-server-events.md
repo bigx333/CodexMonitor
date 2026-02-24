@@ -256,6 +256,10 @@ Use this when the method list is unchanged but behavior looks off.
   - CodexMonitor attempts `turn/steer` only when steer capability is enabled, the thread is processing, and an active turn id exists.
   - If `turn/steer` fails, CodexMonitor does not fall back to `turn/start`; it clears stale processing/turn state when applicable, surfaces an error, and returns `steer_failed`.
   - Local queue fallback on `steer_failed` is handled in the composer queued-send flow (`useQueuedSend`), not by all direct `sendUserMessageToThread` callers.
+- Backend retry behavior for app-server websocket turn errors:
+  - Shared app/daemon session transport (`src-tauri/src/backend/app_server.rs`) may synthesize `error.params.willRetry = true` for retry-safe transient websocket failures tied to a known `turn/start`.
+  - Retry is one-shot per turn and only for retry-safe websocket-class errors (explicit code allowlist-style gate + reconnect-hint fallback text).
+  - If the backend retry attempt fails, it emits a final `error` event with `willRetry = false` so normal frontend error handling resumes.
 - Feature toggles in Settings:
   - `experimentalFeature/list` is an app-server request.
   - Toggle writes use local/daemon command surfaces (`set_codex_feature_flag` and app settings update),

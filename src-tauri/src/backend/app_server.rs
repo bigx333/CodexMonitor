@@ -43,6 +43,185 @@ fn extract_thread_id(value: &Value) -> Option<String> {
         .or_else(|| extract_from_container(value.get("result")))
 }
 
+fn extract_turn_id(value: &Value) -> Option<String> {
+    fn extract_from_container(container: Option<&Value>) -> Option<String> {
+        let container = container?;
+        container
+            .get("turnId")
+            .or_else(|| container.get("turn_id"))
+            .and_then(|t| t.as_str())
+            .map(|s| s.to_string())
+            .or_else(|| {
+                container
+                    .get("turn")
+                    .and_then(|turn| turn.get("id"))
+                    .and_then(|t| t.as_str())
+                    .map(|s| s.to_string())
+            })
+    }
+
+    extract_from_container(value.get("params"))
+        .or_else(|| extract_from_container(value.get("result")))
+}
+
+fn extract_turn_start_response_turn_id(value: &Value) -> Option<String> {
+    value
+        .get("result")
+        .and_then(|result| {
+            result
+                .get("turn")
+                .and_then(|turn| turn.get("id"))
+                .or_else(|| result.get("turnId"))
+                .or_else(|| result.get("turn_id"))
+        })
+        .and_then(|turn_id| turn_id.as_str())
+        .map(|turn_id| turn_id.to_string())
+}
+
+fn extract_turn_start_request_thread_id(params: &Value) -> Option<String> {
+    params
+        .get("threadId")
+        .or_else(|| params.get("thread_id"))
+        .and_then(|thread_id| thread_id.as_str())
+        .map(|thread_id| thread_id.to_string())
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TurnStartRetryContext {
+    workspace_id: String,
+    thread_id: String,
+    params: Value,
+    attempts: u8,
+}
+
+#[derive(Debug, Clone)]
+struct TurnErrorDetails {
+    code: Option<String>,
+    message: Option<String>,
+    will_retry: bool,
+}
+
+fn normalize_turn_error_code(code: Option<&str>) -> Option<String> {
+    code.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_ascii_lowercase())
+        }
+    })
+}
+
+fn extract_turn_error_details(value: &Value) -> Option<TurnErrorDetails> {
+    let params = value.get("params")?.as_object()?;
+    let will_retry = params
+        .get("willRetry")
+        .or_else(|| params.get("will_retry"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    let error = params.get("error").and_then(Value::as_object);
+    let mut code = normalize_turn_error_code(error.and_then(|err| {
+        err.get("code")
+            .or_else(|| err.get("errorCode"))
+            .or_else(|| err.get("error_code"))
+            .and_then(Value::as_str)
+    }));
+
+    let mut message = error
+        .and_then(|err| err.get("message"))
+        .and_then(Value::as_str)
+        .map(|message| message.trim().to_string())
+        .filter(|message| !message.is_empty())
+        .or_else(|| {
+            params
+                .get("message")
+                .and_then(Value::as_str)
+                .map(|message| message.trim().to_string())
+                .filter(|message| !message.is_empty())
+        });
+
+    if let Some(raw_message) = message.clone() {
+        if let Ok(parsed) = serde_json::from_str::<Value>(&raw_message) {
+            let nested = parsed.get("error").unwrap_or(&parsed);
+            if code.is_none() {
+                code = normalize_turn_error_code(
+                    nested
+                        .get("code")
+                        .or_else(|| nested.get("errorCode"))
+                        .or_else(|| nested.get("error_code"))
+                        .and_then(Value::as_str),
+                );
+            }
+            if let Some(nested_message) = nested
+                .get("message")
+                .and_then(Value::as_str)
+                .map(|value| value.trim())
+                .filter(|value| !value.is_empty())
+            {
+                message = Some(nested_message.to_string());
+            }
+        }
+    }
+
+    Some(TurnErrorDetails {
+        code,
+        message,
+        will_retry,
+    })
+}
+
+fn is_retry_safe_turn_start_error(details: &TurnErrorDetails) -> bool {
+    if let Some(code) = details.code.as_deref() {
+        if code.starts_with("websocket_") {
+            return true;
+        }
+    }
+    details.message.as_deref().is_some_and(|message| {
+        let normalized = message.to_ascii_lowercase();
+        normalized.contains("websocket")
+            && normalized.contains("create a new websocket connection")
+    })
+}
+
+fn can_retry_turn_start_error(details: &TurnErrorDetails, has_context: bool, attempts: u8) -> bool {
+    has_context
+        && !details.will_retry
+        && attempts < MAX_TURN_START_RETRY_ATTEMPTS
+        && is_retry_safe_turn_start_error(details)
+}
+
+fn set_turn_error_will_retry(value: &mut Value, will_retry: bool) {
+    if let Some(params) = value.get_mut("params").and_then(Value::as_object_mut) {
+        params.insert("willRetry".to_string(), Value::Bool(will_retry));
+    }
+}
+
+fn extract_response_error_message(value: &Value) -> Option<String> {
+    let error = value.get("error")?;
+    if let Some(message) = error.as_str() {
+        let trimmed = message.trim();
+        return if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        };
+    }
+    if let Some(message) = error
+        .as_object()
+        .and_then(|obj| obj.get("message"))
+        .and_then(Value::as_str)
+    {
+        let trimmed = message.trim();
+        return if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        };
+    }
+    None
+}
+
 fn normalize_root_path(value: &str) -> String {
     let normalized = value.replace('\\', "/");
     let normalized = normalized.trim_end_matches('/');
@@ -201,6 +380,7 @@ fn build_initialize_params(client_version: &str) -> Value {
 }
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
+const MAX_TURN_START_RETRY_ATTEMPTS: u8 = 1;
 
 pub(crate) struct WorkspaceSession {
     pub(crate) codex_args: Option<String>,
@@ -215,6 +395,7 @@ pub(crate) struct WorkspaceSession {
     pub(crate) owner_workspace_id: String,
     pub(crate) workspace_ids: Mutex<HashSet<String>>,
     pub(crate) workspace_roots: Mutex<HashMap<String, String>>,
+    pub(crate) turn_start_retry_context: Mutex<HashMap<String, TurnStartRetryContext>>,
 }
 
 impl WorkspaceSession {
@@ -249,6 +430,62 @@ impl WorkspaceSession {
 
     pub(crate) async fn workspace_ids_snapshot(&self) -> Vec<String> {
         self.workspace_ids.lock().await.iter().cloned().collect()
+    }
+
+    async fn register_turn_start_retry_context(
+        &self,
+        workspace_id: &str,
+        params: &Value,
+        response: &Value,
+    ) {
+        let Some(turn_id) = extract_turn_start_response_turn_id(response) else {
+            return;
+        };
+        let Some(thread_id) = extract_turn_start_request_thread_id(params) else {
+            return;
+        };
+        let mut contexts = self.turn_start_retry_context.lock().await;
+        contexts.retain(|_, ctx| ctx.thread_id != thread_id);
+        contexts.insert(
+            turn_id,
+            TurnStartRetryContext {
+                workspace_id: workspace_id.to_string(),
+                thread_id,
+                params: params.clone(),
+                attempts: 0,
+            },
+        );
+    }
+
+    async fn get_turn_start_retry_context(
+        &self,
+        turn_id: &str,
+    ) -> Option<TurnStartRetryContext> {
+        self.turn_start_retry_context.lock().await.get(turn_id).cloned()
+    }
+
+    async fn reserve_turn_start_retry(
+        &self,
+        turn_id: &str,
+    ) -> Option<TurnStartRetryContext> {
+        let mut contexts = self.turn_start_retry_context.lock().await;
+        let context = contexts.get_mut(turn_id)?;
+        if context.attempts >= MAX_TURN_START_RETRY_ATTEMPTS {
+            return None;
+        }
+        context.attempts += 1;
+        Some(context.clone())
+    }
+
+    async fn clear_turn_start_retry_context(&self, turn_id: &str) {
+        self.turn_start_retry_context.lock().await.remove(turn_id);
+    }
+
+    async fn clear_turn_start_retry_contexts_for_thread(&self, thread_id: &str) {
+        self.turn_start_retry_context
+            .lock()
+            .await
+            .retain(|_, ctx| ctx.thread_id != thread_id);
     }
 
     async fn write_message(&self, value: Value) -> Result<(), String> {
@@ -290,7 +527,7 @@ impl WorkspaceSession {
                 .insert(thread_id, workspace_id.to_string());
         }
         if let Err(error) = self
-            .write_message(json!({ "id": id, "method": method, "params": params }))
+            .write_message(json!({ "id": id, "method": method, "params": params.clone() }))
             .await
         {
             self.pending.lock().await.remove(&id);
@@ -298,7 +535,13 @@ impl WorkspaceSession {
             return Err(error);
         }
         match timeout(REQUEST_TIMEOUT, rx).await {
-            Ok(Ok(value)) => Ok(value),
+            Ok(Ok(value)) => {
+                if method == "turn/start" {
+                    self.register_turn_start_retry_context(workspace_id, &params, &value)
+                        .await;
+                }
+                Ok(value)
+            }
             Ok(Err(_)) => Err("request canceled".to_string()),
             Err(_) => {
                 self.pending.lock().await.remove(&id);
@@ -560,6 +803,7 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
             entry.id.clone(),
             normalize_root_path(&entry.path),
         )])),
+        turn_start_retry_context: Mutex::new(HashMap::new()),
     });
 
     let session_clone = Arc::clone(&session);
@@ -571,7 +815,7 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
             if line.trim().is_empty() {
                 continue;
             }
-            let value: Value = match serde_json::from_str(&line) {
+            let mut value: Value = match serde_json::from_str(&line) {
                 Ok(value) => value,
                 Err(err) => {
                     let payload = AppServerEvent {
@@ -589,10 +833,14 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
             let maybe_id = value.get("id").and_then(|id| id.as_u64());
             let has_method = value.get("method").is_some();
             let has_result_or_error = value.get("result").is_some() || value.get("error").is_some();
-            let method_name = value.get("method").and_then(|method| method.as_str());
+            let method_name = value
+                .get("method")
+                .and_then(|method| method.as_str())
+                .map(|method| method.to_string());
 
             // Check if this event is for a background thread
             let thread_id = extract_thread_id(&value);
+            let turn_id = extract_turn_id(&value);
             let mut request_workspace: Option<String> = None;
             let mut request_method: Option<String> = None;
             if let Some(id) = maybe_id {
@@ -645,9 +893,82 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                     .unwrap_or_else(|| fallback_workspace_id.clone())
             };
 
-            if method_name == Some("thread/archived") {
+            if method_name.as_deref() == Some("thread/archived") {
                 if let Some(ref tid) = thread_id {
                     session_clone.thread_workspace.lock().await.remove(tid);
+                    session_clone
+                        .clear_turn_start_retry_contexts_for_thread(tid)
+                        .await;
+                }
+            }
+            if method_name.as_deref() == Some("turn/completed") {
+                if let Some(ref current_turn_id) = turn_id {
+                    session_clone
+                        .clear_turn_start_retry_context(current_turn_id)
+                        .await;
+                }
+            }
+            if method_name.as_deref() == Some("error") {
+                if let Some(ref current_turn_id) = turn_id {
+                    if let Some(details) = extract_turn_error_details(&value) {
+                        let retry_context = session_clone
+                            .get_turn_start_retry_context(current_turn_id)
+                            .await;
+                        let retry_attempts = retry_context.as_ref().map(|ctx| ctx.attempts).unwrap_or(0);
+                        if can_retry_turn_start_error(
+                            &details,
+                            retry_context.is_some(),
+                            retry_attempts,
+                        ) {
+                            if let Some(retry_context) = session_clone
+                                .reserve_turn_start_retry(current_turn_id)
+                                .await
+                            {
+                                set_turn_error_will_retry(&mut value, true);
+                                let retry_turn_id = current_turn_id.clone();
+                                let session_for_retry = Arc::clone(&session_clone);
+                                let event_sink_for_retry = event_sink_clone.clone();
+                                tokio::spawn(async move {
+                                    let retry_result = session_for_retry
+                                        .send_request_for_workspace(
+                                            &retry_context.workspace_id,
+                                            "turn/start",
+                                            retry_context.params.clone(),
+                                        )
+                                        .await;
+                                    let retry_error = match retry_result {
+                                        Ok(response) => extract_response_error_message(&response),
+                                        Err(error) => Some(error),
+                                    };
+                                    if let Some(error_message) = retry_error {
+                                        session_for_retry
+                                            .clear_turn_start_retry_context(&retry_turn_id)
+                                            .await;
+                                        event_sink_for_retry.emit_app_server_event(AppServerEvent {
+                                            workspace_id: retry_context.workspace_id.clone(),
+                                            message: json!({
+                                                "method": "error",
+                                                "params": {
+                                                    "threadId": retry_context.thread_id,
+                                                    "turnId": retry_turn_id,
+                                                    "error": { "message": format!("Automatic retry failed: {error_message}") },
+                                                    "willRetry": false
+                                                }
+                                            }),
+                                        });
+                                    }
+                                });
+                            } else {
+                                session_clone
+                                    .clear_turn_start_retry_context(current_turn_id)
+                                    .await;
+                            }
+                        } else if !details.will_retry {
+                            session_clone
+                                .clear_turn_start_retry_context(current_turn_id)
+                                .await;
+                        }
+                    }
                 }
             }
 
@@ -669,7 +990,7 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                     // Don't emit to frontend if this is a background thread event
                     if !sent_to_background {
                         if should_broadcast_global_workspace_notification(
-                            method_name,
+                            method_name.as_deref(),
                             thread_id.as_ref(),
                             request_workspace.as_deref(),
                         ) {
@@ -713,7 +1034,7 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                 // Don't emit to frontend if this is a background thread event
                 if !sent_to_background {
                     if should_broadcast_global_workspace_notification(
-                        method_name,
+                        method_name.as_deref(),
                         thread_id.as_ref(),
                         request_workspace.as_deref(),
                     ) {
@@ -747,6 +1068,7 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
         // Ensure pending foreground requests cannot accumulate after process output ends.
         session_clone.pending.lock().await.clear();
         session_clone.request_context.lock().await.clear();
+        session_clone.turn_start_retry_context.lock().await.clear();
     });
 
     let workspace_id = entry.id.clone();
@@ -803,8 +1125,10 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
 #[cfg(test)]
 mod tests {
     use super::{
-        build_initialize_params, extract_thread_entries_from_thread_list_result, extract_thread_id,
-        normalize_root_path, resolve_workspace_for_cwd,
+        build_initialize_params, can_retry_turn_start_error, extract_response_error_message,
+        extract_thread_entries_from_thread_list_result, extract_thread_id, extract_turn_error_details,
+        extract_turn_id, normalize_root_path, set_turn_error_will_retry, resolve_workspace_for_cwd,
+        TurnErrorDetails,
     };
     use std::collections::HashMap;
     use serde_json::json;
@@ -825,6 +1149,18 @@ mod tests {
     fn extract_thread_id_returns_none_when_missing() {
         let value = json!({ "params": {} });
         assert_eq!(extract_thread_id(&value), None);
+    }
+
+    #[test]
+    fn extract_turn_id_reads_turn_object_id() {
+        let value = json!({ "params": { "turn": { "id": "turn-123" } } });
+        assert_eq!(extract_turn_id(&value), Some("turn-123".to_string()));
+    }
+
+    #[test]
+    fn extract_turn_id_reads_turn_id_field() {
+        let value = json!({ "params": { "turn_id": "turn-456" } });
+        assert_eq!(extract_turn_id(&value), Some("turn-456".to_string()));
     }
 
     #[test]
@@ -906,6 +1242,95 @@ mod tests {
         assert_eq!(
             resolve_workspace_for_cwd("/tmp/codex/subdir/project", &roots),
             Some("ws-child".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_turn_error_details_reads_nested_json_error_payload() {
+        let value = json!({
+            "method": "error",
+            "params": {
+                "turnId": "turn-1",
+                "error": {
+                    "message": "{\"error\":{\"type\":\"invalid_request_error\",\"code\":\"websocket_connection_limit_reached\",\"message\":\"Responses websocket connection limit reached (60 minutes). Create a new websocket connection to continue.\"}}"
+                }
+            }
+        });
+        let details = extract_turn_error_details(&value).expect("details");
+        assert_eq!(
+            details.code.as_deref(),
+            Some("websocket_connection_limit_reached")
+        );
+        assert_eq!(
+            details.message.as_deref(),
+            Some(
+                "Responses websocket connection limit reached (60 minutes). Create a new websocket connection to continue."
+            )
+        );
+        assert!(!details.will_retry);
+    }
+
+    #[test]
+    fn can_retry_turn_start_error_retries_only_retry_safe_cases() {
+        let safe = TurnErrorDetails {
+            code: Some("websocket_connection_limit_reached".to_string()),
+            message: Some(
+                "Responses websocket connection limit reached (60 minutes). Create a new websocket connection to continue."
+                    .to_string(),
+            ),
+            will_retry: false,
+        };
+        assert!(can_retry_turn_start_error(&safe, true, 0));
+        assert!(!can_retry_turn_start_error(&safe, false, 0));
+        assert!(!can_retry_turn_start_error(&safe, true, 1));
+
+        let not_safe = TurnErrorDetails {
+            code: Some("invalid_request_error".to_string()),
+            message: Some("Request failed.".to_string()),
+            will_retry: false,
+        };
+        assert!(!can_retry_turn_start_error(&not_safe, true, 0));
+
+        let already_retrying = TurnErrorDetails {
+            code: Some("websocket_connection_limit_reached".to_string()),
+            message: Some("Websocket issue.".to_string()),
+            will_retry: true,
+        };
+        assert!(!can_retry_turn_start_error(&already_retrying, true, 0));
+    }
+
+    #[test]
+    fn set_turn_error_will_retry_sets_params_field() {
+        let mut value = json!({
+            "method": "error",
+            "params": {
+                "threadId": "thread-1",
+                "turnId": "turn-1",
+                "error": { "message": "boom" }
+            }
+        });
+        set_turn_error_will_retry(&mut value, true);
+        assert_eq!(
+            value
+                .get("params")
+                .and_then(|params| params.get("willRetry"))
+                .and_then(|will_retry| will_retry.as_bool()),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn extract_response_error_message_reads_string_and_object_messages() {
+        let string_error = json!({ "error": "boom" });
+        assert_eq!(
+            extract_response_error_message(&string_error).as_deref(),
+            Some("boom")
+        );
+
+        let object_error = json!({ "error": { "message": "nope" } });
+        assert_eq!(
+            extract_response_error_message(&object_error).as_deref(),
+            Some("nope")
         );
     }
 }
