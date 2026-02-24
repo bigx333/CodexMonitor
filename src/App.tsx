@@ -84,6 +84,7 @@ import { WindowCaptionControls } from "@/features/layout/components/WindowCaptio
 import { useUpdaterController } from "@app/hooks/useUpdaterController";
 import { useResponseRequiredNotificationsController } from "@app/hooks/useResponseRequiredNotificationsController";
 import { useErrorToasts } from "@/features/notifications/hooks/useErrorToasts";
+import { useRemotePresenceHeartbeat } from "@/features/notifications/hooks/useRemotePresenceHeartbeat";
 import { useComposerShortcuts } from "@/features/composer/hooks/useComposerShortcuts";
 import { useComposerMenuActions } from "@/features/composer/hooks/useComposerMenuActions";
 import { useComposerEditorState } from "@/features/composer/hooks/useComposerEditorState";
@@ -1004,6 +1005,10 @@ function MainApp() {
     userInputRequests,
     getWorkspaceName,
     onDebug: addDebugEntry,
+  });
+  useRemotePresenceHeartbeat({
+    backendMode: appSettings.backendMode,
+    workspaces,
   });
 
   const {

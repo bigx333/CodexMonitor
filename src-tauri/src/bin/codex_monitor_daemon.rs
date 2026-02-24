@@ -15,6 +15,8 @@ mod file_ops;
 mod file_policy;
 #[path = "../git_utils.rs"]
 mod git_utils;
+#[path = "codex_monitor_daemon/push.rs"]
+mod push;
 #[path = "codex_monitor_daemon/rpc.rs"]
 mod rpc;
 #[path = "../rules.rs"]
@@ -156,6 +158,7 @@ struct DaemonState {
     settings_path: PathBuf,
     app_settings: Mutex<AppSettings>,
     event_sink: DaemonEventSink,
+    push_broker: Arc<push::PushBroker>,
     codex_login_cancels: Mutex<HashMap<String, CodexLoginCancelState>>,
     daemon_binary_path: Option<String>,
 }
@@ -167,7 +170,11 @@ struct WorkspaceFileResponse {
 }
 
 impl DaemonState {
-    fn load(config: &DaemonConfig, event_sink: DaemonEventSink) -> Self {
+    fn load(
+        config: &DaemonConfig,
+        event_sink: DaemonEventSink,
+        push_broker: Arc<push::PushBroker>,
+    ) -> Self {
         let storage_path = config.data_dir.join("workspaces.json");
         let settings_path = config.data_dir.join("settings.json");
         let workspaces = read_workspaces(&storage_path).unwrap_or_default();
@@ -183,6 +190,7 @@ impl DaemonState {
             settings_path,
             app_settings: Mutex::new(app_settings),
             event_sink,
+            push_broker,
             codex_login_cancels: Mutex::new(HashMap::new()),
             daemon_binary_path,
         }
@@ -757,8 +765,7 @@ impl DaemonState {
         limit: Option<u32>,
         sort_key: Option<String>,
     ) -> Result<Value, String> {
-        codex_core::list_threads_core(&self.sessions, workspace_id, cursor, limit, sort_key)
-            .await
+        codex_core::list_threads_core(&self.sessions, workspace_id, cursor, limit, sort_key).await
     }
 
     async fn list_mcp_server_status(
@@ -1337,6 +1344,49 @@ impl DaemonState {
     async fn send_notification_fallback(&self, title: String, body: String) -> Result<(), String> {
         send_notification_fallback_inner(title, body)
     }
+
+    async fn presence_heartbeat(&self, input: push::PresenceHeartbeatInput) -> Result<(), String> {
+        self.push_broker.record_presence(input).await
+    }
+
+    async fn push_register_device(
+        &self,
+        input: push::PushDeviceRegistrationInput,
+    ) -> Result<Value, String> {
+        let device = self.push_broker.register_device(input).await?;
+        serde_json::to_value(device).map_err(|err| err.to_string())
+    }
+
+    async fn push_unregister_device(&self, device_id: String) -> Result<(), String> {
+        self.push_broker.unregister_device(device_id).await
+    }
+
+    async fn push_notification_config_get(&self) -> Result<Value, String> {
+        Ok(self.push_broker.config_snapshot().await)
+    }
+
+    async fn push_notification_config_patch(
+        &self,
+        patch: push::PushNotificationConfigPatch,
+    ) -> Result<Value, String> {
+        self.push_broker.patch_config(patch).await
+    }
+
+    async fn push_notification_state(&self) -> Result<Value, String> {
+        Ok(self.push_broker.state_snapshot().await)
+    }
+
+    async fn handle_push_candidate_event(&self, event: AppServerEvent) {
+        let workspace_name = {
+            let workspaces = self.workspaces.lock().await;
+            workspaces
+                .get(event.workspace_id.as_str())
+                .map(|workspace| workspace.name.clone())
+        };
+        self.push_broker
+            .handle_app_server_event(event.workspace_id.as_str(), workspace_name, &event.message)
+            .await;
+    }
 }
 
 fn should_skip_dir(name: &str) -> bool {
@@ -1593,6 +1643,7 @@ mod tests {
 
     fn test_state(data_dir: &std::path::Path) -> DaemonState {
         let (tx, _rx) = broadcast::channel::<DaemonEvent>(32);
+        let push_broker = Arc::new(push::PushBroker::load(&data_dir.to_path_buf()));
         DaemonState {
             data_dir: data_dir.to_path_buf(),
             workspaces: Mutex::new(HashMap::new()),
@@ -1601,6 +1652,7 @@ mod tests {
             settings_path: data_dir.join("settings.json"),
             app_settings: Mutex::new(AppSettings::default()),
             event_sink: DaemonEventSink { tx },
+            push_broker,
             codex_login_cancels: Mutex::new(HashMap::new()),
             daemon_binary_path: Some("/tmp/codex-monitor-daemon".to_string()),
         }
@@ -1916,8 +1968,26 @@ fn main() {
         let event_sink = DaemonEventSink {
             tx: events_tx.clone(),
         };
-        let state = Arc::new(DaemonState::load(&config, event_sink));
+        let push_broker = Arc::new(push::PushBroker::load(&config.data_dir));
+        let state = Arc::new(DaemonState::load(&config, event_sink, push_broker));
         let config = Arc::new(config);
+
+        {
+            let state_for_push = Arc::clone(&state);
+            let mut push_rx = events_tx.subscribe();
+            tokio::spawn(async move {
+                loop {
+                    let event = match push_rx.recv().await {
+                        Ok(event) => event,
+                        Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(broadcast::error::RecvError::Closed) => break,
+                    };
+                    if let DaemonEvent::AppServer(payload) = event {
+                        state_for_push.handle_push_candidate_event(payload).await;
+                    }
+                }
+            });
+        }
 
         let listener = match TcpListener::bind(config.listen).await {
             Ok(listener) => listener,

@@ -848,6 +848,76 @@ export async function isMobileRuntime(): Promise<boolean> {
   return invoke<boolean>("is_mobile_runtime");
 }
 
+export type PresenceHeartbeatInput = {
+  clientId: string;
+  clientKind: "desktop" | "mobile";
+  platform?: string | null;
+  isSupported: boolean;
+  isFocused: boolean;
+  isAfk: boolean;
+  activeWorkspaceIds: string[];
+};
+
+export async function sendPresenceHeartbeat(
+  input: PresenceHeartbeatInput,
+): Promise<void> {
+  await invoke("send_presence_heartbeat", {
+    clientId: input.clientId,
+    clientKind: input.clientKind,
+    platform: input.platform ?? null,
+    isSupported: input.isSupported,
+    isFocused: input.isFocused,
+    isAfk: input.isAfk,
+    activeWorkspaceIds: input.activeWorkspaceIds,
+  });
+}
+
+export type PushNotificationConfig = {
+  relayUrl: string | null;
+  hasRelayAuthToken: boolean;
+  registeredDeviceCount: number;
+};
+
+export async function getPushNotificationConfig(): Promise<PushNotificationConfig> {
+  return invoke<PushNotificationConfig>("push_notification_config_get");
+}
+
+export async function patchPushNotificationConfig(
+  relayUrl: string | null,
+  relayAuthToken: string | null,
+): Promise<PushNotificationConfig> {
+  return invoke<PushNotificationConfig>("push_notification_config_patch", {
+    relayUrl,
+    relayAuthToken,
+  });
+}
+
+export async function registerPushDevice(
+  deviceId: string,
+  platform: "android" | "ios",
+  token: string,
+  label?: string | null,
+): Promise<void> {
+  await invoke("push_register_device", {
+    deviceId,
+    platform,
+    token,
+    label: label ?? null,
+  });
+}
+
+export async function unregisterPushDevice(deviceId: string): Promise<void> {
+  await invoke("push_unregister_device", { deviceId });
+}
+
+export async function getPushNotificationState(): Promise<Record<string, unknown>> {
+  return invoke<Record<string, unknown>>("push_notification_state");
+}
+
+export async function getSystemIdleSeconds(): Promise<number | null> {
+  return invoke<number | null>("get_system_idle_seconds");
+}
+
 export async function updateAppSettings(settings: AppSettings): Promise<AppSettings> {
   return invoke<AppSettings>("update_app_settings", { settings });
 }

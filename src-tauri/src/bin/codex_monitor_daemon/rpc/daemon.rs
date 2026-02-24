@@ -55,6 +55,49 @@ pub(super) async fn try_handle(
                     .map(|_| json!({ "ok": true })),
             )
         }
+        "presence_heartbeat" => {
+            let input = match serde_json::from_value::<push::PresenceHeartbeatInput>(params.clone())
+            {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err.to_string())),
+            };
+            Some(
+                state
+                    .presence_heartbeat(input)
+                    .await
+                    .map(|_| json!({ "ok": true })),
+            )
+        }
+        "push_register_device" => {
+            let input =
+                match serde_json::from_value::<push::PushDeviceRegistrationInput>(params.clone()) {
+                    Ok(value) => value,
+                    Err(err) => return Some(Err(err.to_string())),
+                };
+            Some(state.push_register_device(input).await)
+        }
+        "push_unregister_device" => {
+            let device_id = match parse_string(params, "deviceId") {
+                Ok(value) => value,
+                Err(err) => return Some(Err(err)),
+            };
+            Some(
+                state
+                    .push_unregister_device(device_id)
+                    .await
+                    .map(|_| json!({ "ok": true })),
+            )
+        }
+        "push_notification_config_get" => Some(state.push_notification_config_get().await),
+        "push_notification_config_patch" => {
+            let patch =
+                match serde_json::from_value::<push::PushNotificationConfigPatch>(params.clone()) {
+                    Ok(value) => value,
+                    Err(err) => return Some(Err(err.to_string())),
+                };
+            Some(state.push_notification_config_patch(patch).await)
+        }
+        "push_notification_state" => Some(state.push_notification_state().await),
         _ => None,
     }
 }

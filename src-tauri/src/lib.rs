@@ -22,6 +22,7 @@ mod menu;
 mod menu;
 mod notifications;
 mod prompts;
+mod push_notifications;
 mod remote_backend;
 mod rules;
 mod settings;
@@ -175,7 +176,8 @@ pub fn run() {
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(tauri_plugin_liquid_glass::init());
 
-    let app = builder.invoke_handler(tauri::generate_handler![
+    let app = builder
+        .invoke_handler(tauri::generate_handler![
             settings::get_app_settings,
             settings::update_app_settings,
             settings::get_codex_config_path,
@@ -292,6 +294,13 @@ pub fn run() {
             notifications::is_macos_debug_build,
             notifications::app_build_type,
             notifications::send_notification_fallback,
+            push_notifications::send_presence_heartbeat,
+            push_notifications::push_register_device,
+            push_notifications::push_unregister_device,
+            push_notifications::push_notification_config_get,
+            push_notifications::push_notification_config_patch,
+            push_notifications::push_notification_state,
+            push_notifications::get_system_idle_seconds,
             tailscale::tailscale_status,
             tailscale::tailscale_daemon_command_preview,
             tailscale::tailscale_daemon_start,
