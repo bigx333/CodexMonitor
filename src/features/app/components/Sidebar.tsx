@@ -180,6 +180,9 @@ export const Sidebar = memo(function Sidebar({
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(
     new Set<string>(),
   );
+  const [expandedThreadChildren, setExpandedThreadChildren] = useState(
+    new Set<string>(),
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [addMenuAnchor, setAddMenuAnchor] = useState<{
@@ -744,6 +747,30 @@ export const Sidebar = memo(function Sidebar({
       return next;
     });
   }, []);
+  const getThreadCollapseKey = useCallback(
+    (workspaceId: string, threadId: string) => `${workspaceId}:${threadId}`,
+    [],
+  );
+  const isThreadChildrenExpanded = useCallback(
+    (workspaceId: string, threadId: string) =>
+      expandedThreadChildren.has(getThreadCollapseKey(workspaceId, threadId)),
+    [expandedThreadChildren, getThreadCollapseKey],
+  );
+  const handleToggleThreadChildren = useCallback(
+    (workspaceId: string, threadId: string) => {
+      const key = getThreadCollapseKey(workspaceId, threadId);
+      setExpandedThreadChildren((prev) => {
+        const next = new Set(prev);
+        if (next.has(key)) {
+          next.delete(key);
+        } else {
+          next.add(key);
+        }
+        return next;
+      });
+    },
+    [getThreadCollapseKey],
+  );
 
   const getThreadTime = useCallback(
     (thread: ThreadSummary) => {
@@ -871,8 +898,10 @@ export const Sidebar = memo(function Sidebar({
                 getThreadTime={getThreadTime}
                 getThreadArgsBadge={getThreadArgsBadge}
                 isThreadPinned={isThreadPinned}
+                isThreadChildrenExpanded={isThreadChildrenExpanded}
                 onSelectThread={onSelectThread}
                 onShowThreadMenu={showThreadMenu}
+                onToggleThreadChildren={handleToggleThreadChildren}
                 getWorkspaceLabel={isThreadsOnlyMode ? getWorkspaceLabel : undefined}
               />
             </div>
@@ -904,8 +933,10 @@ export const Sidebar = memo(function Sidebar({
                       getThreadTime={getThreadTime}
                       getThreadArgsBadge={getThreadArgsBadge}
                       isThreadPinned={isThreadPinned}
+                      isThreadChildrenExpanded={isThreadChildrenExpanded}
                       onSelectThread={onSelectThread}
                       onShowThreadMenu={showThreadMenu}
+                      onToggleThreadChildren={handleToggleThreadChildren}
                       getWorkspaceLabel={getWorkspaceLabel}
                     />
                   )}
@@ -1095,6 +1126,7 @@ export const Sidebar = memo(function Sidebar({
                               getThreadTime={getThreadTime}
                               getThreadArgsBadge={getThreadArgsBadge}
                               isThreadPinned={isThreadPinned}
+                              isThreadChildrenExpanded={isThreadChildrenExpanded}
                               getPinTimestamp={getPinTimestamp}
                               pinnedThreadsVersion={pinnedThreadsVersion}
                               onSelectWorkspace={onSelectWorkspace}
@@ -1104,6 +1136,7 @@ export const Sidebar = memo(function Sidebar({
                               onShowThreadMenu={showThreadMenu}
                               onShowWorktreeMenu={showCloneMenu}
                               onToggleExpanded={handleToggleExpanded}
+                              onToggleThreadChildren={handleToggleThreadChildren}
                               onLoadOlderThreads={onLoadOlderThreads}
                               sectionLabel="Clone agents"
                               sectionIcon={
@@ -1129,6 +1162,7 @@ export const Sidebar = memo(function Sidebar({
                               getThreadTime={getThreadTime}
                               getThreadArgsBadge={getThreadArgsBadge}
                               isThreadPinned={isThreadPinned}
+                              isThreadChildrenExpanded={isThreadChildrenExpanded}
                               getPinTimestamp={getPinTimestamp}
                               pinnedThreadsVersion={pinnedThreadsVersion}
                               onSelectWorkspace={onSelectWorkspace}
@@ -1138,6 +1172,7 @@ export const Sidebar = memo(function Sidebar({
                               onShowThreadMenu={showThreadMenu}
                               onShowWorktreeMenu={showWorktreeMenu}
                               onToggleExpanded={handleToggleExpanded}
+                              onToggleThreadChildren={handleToggleThreadChildren}
                               onLoadOlderThreads={onLoadOlderThreads}
                             />
                           )}
@@ -1157,10 +1192,12 @@ export const Sidebar = memo(function Sidebar({
                               getThreadTime={getThreadTime}
                               getThreadArgsBadge={getThreadArgsBadge}
                               isThreadPinned={isThreadPinned}
+                              isThreadChildrenExpanded={isThreadChildrenExpanded}
                               onToggleExpanded={handleToggleExpanded}
                               onLoadOlderThreads={onLoadOlderThreads}
                               onSelectThread={onSelectThread}
                               onShowThreadMenu={showThreadMenu}
+                              onToggleThreadChildren={handleToggleThreadChildren}
                             />
                           )}
                           {showThreadLoader && <ThreadLoading />}

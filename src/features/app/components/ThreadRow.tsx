@@ -6,6 +6,8 @@ import { getThreadStatusClass, type ThreadStatusById } from "../../../utils/thre
 type ThreadRowProps = {
   thread: ThreadSummary;
   depth: number;
+  hasChildren?: boolean;
+  isChildrenExpanded?: boolean;
   workspaceId: string;
   indentUnit: number;
   activeWorkspaceId: string | null;
@@ -23,11 +25,14 @@ type ThreadRowProps = {
     threadId: string,
     canPin: boolean,
   ) => void;
+  onToggleChildren?: (workspaceId: string, threadId: string) => void;
 };
 
 export function ThreadRow({
   thread,
   depth,
+  hasChildren = false,
+  isChildrenExpanded = false,
   workspaceId,
   indentUnit,
   activeWorkspaceId,
@@ -40,6 +45,7 @@ export function ThreadRow({
   isThreadPinned,
   onSelectThread,
   onShowThreadMenu,
+  onToggleChildren,
 }: ThreadRowProps) {
   const relativeTime = getThreadTime(thread);
   const badge = getThreadArgsBadge?.(workspaceId, thread.id) ?? null;
@@ -82,6 +88,27 @@ export function ThreadRow({
         }
       }}
     >
+      {hasChildren ? (
+        <button
+          type="button"
+          className={`thread-children-toggle${isChildrenExpanded ? " expanded" : ""}`}
+          aria-label={isChildrenExpanded ? "Collapse sub-agents" : "Expand sub-agents"}
+          aria-expanded={isChildrenExpanded}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleChildren?.(workspaceId, thread.id);
+          }}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+          }}
+        >
+          <span className="thread-children-toggle-icon" aria-hidden>
+            {">"}
+          </span>
+        </button>
+      ) : (
+        <span className="thread-children-toggle-spacer" aria-hidden />
+      )}
       <span className={`thread-status ${statusClass}`} aria-hidden />
       {isPinned && <span className="thread-pin-icon" aria-label="Pinned">📌</span>}
       <span className="thread-name">{thread.name}</span>

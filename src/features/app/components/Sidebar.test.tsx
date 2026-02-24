@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createRef } from "react";
@@ -432,6 +432,68 @@ describe("Sidebar", () => {
     expect(screen.getByText("Clone Agent")).toBeTruthy();
     expect(container.querySelectorAll(".workspace-row")).toHaveLength(1);
     expect(container.querySelectorAll(".worktree-row")).toHaveLength(1);
+  });
+
+  it("keeps subagent descendants collapsed by default with multi-depth toggles", () => {
+    render(
+      <Sidebar
+        {...baseProps}
+        workspaces={[
+          {
+            id: "ws-1",
+            name: "Workspace",
+            path: "/tmp/workspace",
+            connected: true,
+            settings: { sidebarCollapsed: false },
+          },
+        ]}
+        groupedWorkspaces={[
+          {
+            id: null,
+            name: "Workspaces",
+            workspaces: [
+              {
+                id: "ws-1",
+                name: "Workspace",
+                path: "/tmp/workspace",
+                connected: true,
+                settings: { sidebarCollapsed: false },
+              },
+            ],
+          },
+        ]}
+        threadsByWorkspace={{
+          "ws-1": [
+            { id: "thread-1", name: "Parent", updatedAt: 10 },
+            { id: "thread-2", name: "Child", updatedAt: 9 },
+            { id: "thread-3", name: "Grandchild", updatedAt: 8 },
+          ],
+        }}
+        threadParentById={{
+          "thread-2": "thread-1",
+          "thread-3": "thread-2",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Parent")).toBeTruthy();
+    expect(screen.queryByText("Child")).toBeNull();
+    expect(screen.queryByText("Grandchild")).toBeNull();
+
+    const parentRow = screen.getByText("Parent").closest(".thread-row");
+    if (!(parentRow instanceof HTMLElement)) {
+      throw new Error("Missing parent row");
+    }
+    fireEvent.click(within(parentRow).getByRole("button", { name: "Expand sub-agents" }));
+    expect(screen.getByText("Child")).toBeTruthy();
+    expect(screen.queryByText("Grandchild")).toBeNull();
+
+    const childRow = screen.getByText("Child").closest(".thread-row");
+    if (!(childRow instanceof HTMLElement)) {
+      throw new Error("Missing child row");
+    }
+    fireEvent.click(within(childRow).getByRole("button", { name: "Expand sub-agents" }));
+    expect(screen.getByText("Grandchild")).toBeTruthy();
   });
 
   it("sorts by project activity using clone-thread activity for the source project", () => {

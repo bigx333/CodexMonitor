@@ -3,6 +3,7 @@ import type { MouseEvent, ReactNode } from "react";
 
 import type { ThreadSummary, WorkspaceInfo } from "../../../types";
 import type { ThreadStatusById } from "../../../utils/threadStatus";
+import type { IsThreadChildrenExpanded } from "../utils/threadRowVisibility";
 import { ThreadList } from "./ThreadList";
 import { ThreadLoading } from "./ThreadLoading";
 import { WorktreeCard } from "./WorktreeCard";
@@ -36,6 +37,7 @@ type WorktreeSectionProps = {
   getThreadTime: (thread: ThreadSummary) => string | null;
   getThreadArgsBadge?: (workspaceId: string, threadId: string) => string | null;
   isThreadPinned: (workspaceId: string, threadId: string) => boolean;
+  isThreadChildrenExpanded: IsThreadChildrenExpanded;
   getPinTimestamp: (workspaceId: string, threadId: string) => number | null;
   pinnedThreadsVersion: number;
   onSelectWorkspace: (id: string) => void;
@@ -50,6 +52,7 @@ type WorktreeSectionProps = {
   ) => void;
   onShowWorktreeMenu: (event: MouseEvent, worktree: WorkspaceInfo) => void;
   onToggleExpanded: (workspaceId: string) => void;
+  onToggleThreadChildren: (workspaceId: string, threadId: string) => void;
   onLoadOlderThreads: (workspaceId: string) => void;
   sectionLabel?: string;
   sectionIcon?: ReactNode;
@@ -72,6 +75,7 @@ export function WorktreeSection({
   getThreadTime,
   getThreadArgsBadge,
   isThreadPinned,
+  isThreadChildrenExpanded,
   getPinTimestamp,
   pinnedThreadsVersion,
   onSelectWorkspace,
@@ -81,6 +85,7 @@ export function WorktreeSection({
   onShowThreadMenu,
   onShowWorktreeMenu,
   onToggleExpanded,
+  onToggleThreadChildren,
   onLoadOlderThreads,
   sectionLabel = "Worktrees",
   sectionIcon,
@@ -150,10 +155,12 @@ export function WorktreeSection({
                   getThreadTime={getThreadTime}
                   getThreadArgsBadge={getThreadArgsBadge}
                   isThreadPinned={isThreadPinned}
+                  isThreadChildrenExpanded={isThreadChildrenExpanded}
                   onToggleExpanded={onToggleExpanded}
                   onLoadOlderThreads={onLoadOlderThreads}
                   onSelectThread={onSelectThread}
                   onShowThreadMenu={onShowThreadMenu}
+                  onToggleThreadChildren={onToggleThreadChildren}
                 />
               )}
               {showWorktreeLoader && <ThreadLoading nested />}

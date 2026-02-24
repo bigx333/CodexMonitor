@@ -1,13 +1,24 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ThreadSummary } from "../../../types";
 import { ThreadList } from "./ThreadList";
+
+afterEach(() => {
+  cleanup();
+});
 
 const nestedThread: ThreadSummary = {
   id: "thread-2",
   name: "Nested Agent",
   updatedAt: 900,
+};
+
+const deepThread: ThreadSummary = {
+  id: "thread-3",
+  name: "Deep Agent",
+  updatedAt: 800,
 };
 
 const thread: ThreadSummary = {
@@ -151,5 +162,80 @@ describe("ThreadList", () => {
     expect(row?.querySelector(".thread-name")?.textContent).toBe("Alpha");
     expect(row?.querySelector(".thread-status")?.className).toContain("unread");
     expect(row?.querySelector(".thread-status")?.className).not.toContain("processing");
+  });
+
+  it("collapses child rows by default and supports multi-depth expansion", () => {
+    const expandedKeys = new Set<string>();
+    const isThreadChildrenExpanded = (workspaceId: string, threadId: string) =>
+      expandedKeys.has(`${workspaceId}:${threadId}`);
+    const onToggleThreadChildren = (workspaceId: string, threadId: string) => {
+      const key = `${workspaceId}:${threadId}`;
+      if (expandedKeys.has(key)) {
+        expandedKeys.delete(key);
+      } else {
+        expandedKeys.add(key);
+      }
+    };
+    const onSelectThread = vi.fn();
+    const { rerender } = render(
+      <ThreadList
+        {...baseProps}
+        unpinnedRows={[
+          { thread, depth: 0 },
+          { thread: nestedThread, depth: 1 },
+          { thread: deepThread, depth: 2 },
+        ]}
+        isThreadChildrenExpanded={isThreadChildrenExpanded}
+        onToggleThreadChildren={onToggleThreadChildren}
+        onSelectThread={onSelectThread}
+      />,
+    );
+
+    expect(screen.getAllByText("Alpha").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Nested Agent")).toBeNull();
+    expect(screen.queryByText("Deep Agent")).toBeNull();
+
+    const rootRow = screen.getByText("Alpha").closest(".thread-row");
+    if (!(rootRow instanceof HTMLElement)) {
+      throw new Error("Missing root row");
+    }
+    const rootToggle = within(rootRow).getByRole("button", { name: "Expand sub-agents" });
+    fireEvent.click(rootToggle);
+    expect(onSelectThread).not.toHaveBeenCalled();
+    rerender(
+      <ThreadList
+        {...baseProps}
+        unpinnedRows={[
+          { thread, depth: 0 },
+          { thread: nestedThread, depth: 1 },
+          { thread: deepThread, depth: 2 },
+        ]}
+        isThreadChildrenExpanded={isThreadChildrenExpanded}
+        onToggleThreadChildren={onToggleThreadChildren}
+        onSelectThread={onSelectThread}
+      />,
+    );
+
+    const nestedRow = screen.getByText("Nested Agent").closest(".thread-row");
+    expect(screen.queryByText("Deep Agent")).toBeNull();
+    if (!(nestedRow instanceof HTMLElement)) {
+      throw new Error("Missing nested row after expansion");
+    }
+    const nestedToggle = within(nestedRow).getByRole("button", { name: "Expand sub-agents" });
+    fireEvent.click(nestedToggle);
+    rerender(
+      <ThreadList
+        {...baseProps}
+        unpinnedRows={[
+          { thread, depth: 0 },
+          { thread: nestedThread, depth: 1 },
+          { thread: deepThread, depth: 2 },
+        ]}
+        isThreadChildrenExpanded={isThreadChildrenExpanded}
+        onToggleThreadChildren={onToggleThreadChildren}
+      />,
+    );
+
+    expect(screen.getByText("Deep Agent")).toBeTruthy();
   });
 });

@@ -36,6 +36,7 @@ describe("WorktreeSection", () => {
         })}
         getThreadTime={() => null}
         isThreadPinned={() => false}
+        isThreadChildrenExpanded={() => false}
         getPinTimestamp={() => null}
         pinnedThreadsVersion={0}
         onSelectWorkspace={vi.fn()}
@@ -45,6 +46,7 @@ describe("WorktreeSection", () => {
         onShowThreadMenu={vi.fn()}
         onShowWorktreeMenu={vi.fn()}
         onToggleExpanded={vi.fn()}
+        onToggleThreadChildren={vi.fn()}
         onLoadOlderThreads={vi.fn()}
       />,
     );

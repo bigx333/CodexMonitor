@@ -1,7 +1,12 @@
+import { useMemo } from "react";
 import type { MouseEvent } from "react";
 
 import type { ThreadSummary } from "../../../types";
 import type { ThreadStatusById } from "../../../utils/threadStatus";
+import {
+  buildVisibleThreadRows,
+  type IsThreadChildrenExpanded,
+} from "../utils/threadRowVisibility";
 import { ThreadRow } from "./ThreadRow";
 
 type PinnedThreadRow = {
@@ -20,6 +25,7 @@ type PinnedThreadListProps = {
   getThreadTime: (thread: ThreadSummary) => string | null;
   getThreadArgsBadge?: (workspaceId: string, threadId: string) => string | null;
   isThreadPinned: (workspaceId: string, threadId: string) => boolean;
+  isThreadChildrenExpanded?: IsThreadChildrenExpanded;
   onSelectThread: (workspaceId: string, threadId: string) => void;
   onShowThreadMenu: (
     event: MouseEvent,
@@ -27,6 +33,7 @@ type PinnedThreadListProps = {
     threadId: string,
     canPin: boolean,
   ) => void;
+  onToggleThreadChildren?: (workspaceId: string, threadId: string) => void;
 };
 
 export function PinnedThreadList({
@@ -39,17 +46,32 @@ export function PinnedThreadList({
   getThreadTime,
   getThreadArgsBadge,
   isThreadPinned,
+  isThreadChildrenExpanded,
   onSelectThread,
   onShowThreadMenu,
+  onToggleThreadChildren,
 }: PinnedThreadListProps) {
+  const visibleRows = useMemo(
+    () =>
+      buildVisibleThreadRows(
+        rows,
+        (row) => row.workspaceId,
+        isThreadChildrenExpanded,
+      ),
+    [isThreadChildrenExpanded, rows],
+  );
+
   return (
     <div className="thread-list pinned-thread-list">
-      {rows.map(({ thread, depth, workspaceId }) => {
+      {visibleRows.map(({ row, hasChildren, isChildrenExpanded }) => {
+        const { thread, depth, workspaceId } = row;
         return (
           <ThreadRow
             key={`${workspaceId}:${thread.id}`}
             thread={thread}
             depth={depth}
+            hasChildren={hasChildren}
+            isChildrenExpanded={isChildrenExpanded}
             workspaceId={workspaceId}
             indentUnit={14}
             activeWorkspaceId={activeWorkspaceId}
@@ -62,6 +84,7 @@ export function PinnedThreadList({
             isThreadPinned={isThreadPinned}
             onSelectThread={onSelectThread}
             onShowThreadMenu={onShowThreadMenu}
+            onToggleChildren={onToggleThreadChildren}
           />
         );
       })}

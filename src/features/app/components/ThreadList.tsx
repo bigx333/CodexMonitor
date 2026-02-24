@@ -1,7 +1,12 @@
+import { useMemo } from "react";
 import type { MouseEvent } from "react";
 
 import type { ThreadSummary } from "../../../types";
 import type { ThreadStatusById } from "../../../utils/threadStatus";
+import {
+  buildVisibleThreadRows,
+  type IsThreadChildrenExpanded,
+} from "../utils/threadRowVisibility";
 import { ThreadRow } from "./ThreadRow";
 
 type ThreadListRow = {
@@ -26,6 +31,7 @@ type ThreadListProps = {
   getThreadTime: (thread: ThreadSummary) => string | null;
   getThreadArgsBadge?: (workspaceId: string, threadId: string) => string | null;
   isThreadPinned: (workspaceId: string, threadId: string) => boolean;
+  isThreadChildrenExpanded?: IsThreadChildrenExpanded;
   onToggleExpanded: (workspaceId: string) => void;
   onLoadOlderThreads: (workspaceId: string) => void;
   onSelectThread: (workspaceId: string, threadId: string) => void;
@@ -35,6 +41,7 @@ type ThreadListProps = {
     threadId: string,
     canPin: boolean,
   ) => void;
+  onToggleThreadChildren?: (workspaceId: string, threadId: string) => void;
 };
 
 export function ThreadList({
@@ -54,20 +61,42 @@ export function ThreadList({
   getThreadTime,
   getThreadArgsBadge,
   isThreadPinned,
+  isThreadChildrenExpanded,
   onToggleExpanded,
   onLoadOlderThreads,
   onSelectThread,
   onShowThreadMenu,
+  onToggleThreadChildren,
 }: ThreadListProps) {
   const indentUnit = nested ? 10 : 14;
+  const visiblePinnedRows = useMemo(
+    () =>
+      buildVisibleThreadRows(
+        pinnedRows,
+        () => workspaceId,
+        isThreadChildrenExpanded,
+      ),
+    [isThreadChildrenExpanded, pinnedRows, workspaceId],
+  );
+  const visibleUnpinnedRows = useMemo(
+    () =>
+      buildVisibleThreadRows(
+        unpinnedRows,
+        () => workspaceId,
+        isThreadChildrenExpanded,
+      ),
+    [isThreadChildrenExpanded, unpinnedRows, workspaceId],
+  );
 
   return (
     <div className={`thread-list${nested ? " thread-list-nested" : ""}`}>
-      {pinnedRows.map(({ thread, depth }) => (
+      {visiblePinnedRows.map(({ row, hasChildren, isChildrenExpanded }) => (
         <ThreadRow
-          key={thread.id}
-          thread={thread}
-          depth={depth}
+          key={row.thread.id}
+          thread={row.thread}
+          depth={row.depth}
+          hasChildren={hasChildren}
+          isChildrenExpanded={isChildrenExpanded}
           workspaceId={workspaceId}
           indentUnit={indentUnit}
           activeWorkspaceId={activeWorkspaceId}
@@ -79,16 +108,19 @@ export function ThreadList({
           isThreadPinned={isThreadPinned}
           onSelectThread={onSelectThread}
           onShowThreadMenu={onShowThreadMenu}
+          onToggleChildren={onToggleThreadChildren}
         />
       ))}
-      {pinnedRows.length > 0 && unpinnedRows.length > 0 && (
+      {visiblePinnedRows.length > 0 && visibleUnpinnedRows.length > 0 && (
         <div className="thread-list-separator" aria-hidden="true" />
       )}
-      {unpinnedRows.map(({ thread, depth }) => (
+      {visibleUnpinnedRows.map(({ row, hasChildren, isChildrenExpanded }) => (
         <ThreadRow
-          key={thread.id}
-          thread={thread}
-          depth={depth}
+          key={row.thread.id}
+          thread={row.thread}
+          depth={row.depth}
+          hasChildren={hasChildren}
+          isChildrenExpanded={isChildrenExpanded}
           workspaceId={workspaceId}
           indentUnit={indentUnit}
           activeWorkspaceId={activeWorkspaceId}
@@ -100,6 +132,7 @@ export function ThreadList({
           isThreadPinned={isThreadPinned}
           onSelectThread={onSelectThread}
           onShowThreadMenu={onShowThreadMenu}
+          onToggleChildren={onToggleThreadChildren}
         />
       ))}
       {totalThreadRoots > 3 && (

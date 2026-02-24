@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ThreadSummary } from "../../../types";
 import { PinnedThreadList } from "./PinnedThreadList";
+
+afterEach(() => {
+  cleanup();
+});
 
 const thread: ThreadSummary = {
   id: "thread-1",
@@ -14,6 +19,12 @@ const otherThread: ThreadSummary = {
   id: "thread-2",
   name: "Pinned Beta",
   updatedAt: 800,
+};
+
+const nestedThread: ThreadSummary = {
+  id: "thread-3",
+  name: "Pinned Gamma",
+  updatedAt: 700,
 };
 
 const statusMap = {
@@ -120,5 +131,53 @@ describe("PinnedThreadList", () => {
     expect(row?.querySelector(".thread-name")?.textContent).toBe("Pinned Beta");
     expect(row?.querySelector(".thread-status")?.className).toContain("unread");
     expect(row?.querySelector(".thread-status")?.className).not.toContain("processing");
+  });
+
+  it("collapses pinned subagent descendants by default", () => {
+    const expandedKeys = new Set<string>();
+    const isThreadChildrenExpanded = (workspaceId: string, threadId: string) =>
+      expandedKeys.has(`${workspaceId}:${threadId}`);
+    const onToggleThreadChildren = (workspaceId: string, threadId: string) => {
+      const key = `${workspaceId}:${threadId}`;
+      if (expandedKeys.has(key)) {
+        expandedKeys.delete(key);
+      } else {
+        expandedKeys.add(key);
+      }
+    };
+    const { rerender } = render(
+      <PinnedThreadList
+        {...baseProps}
+        rows={[
+          { thread, depth: 0, workspaceId: "ws-1" },
+          { thread: nestedThread, depth: 1, workspaceId: "ws-1" },
+        ]}
+        isThreadChildrenExpanded={isThreadChildrenExpanded}
+        onToggleThreadChildren={onToggleThreadChildren}
+      />,
+    );
+
+    expect(screen.getAllByText("Pinned Alpha").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Pinned Gamma")).toBeNull();
+
+    const rootRow = screen.getByText("Pinned Alpha").closest(".thread-row");
+    if (!(rootRow instanceof HTMLElement)) {
+      throw new Error("Missing pinned root row");
+    }
+    fireEvent.click(within(rootRow).getByRole("button", { name: "Expand sub-agents" }));
+
+    rerender(
+      <PinnedThreadList
+        {...baseProps}
+        rows={[
+          { thread, depth: 0, workspaceId: "ws-1" },
+          { thread: nestedThread, depth: 1, workspaceId: "ws-1" },
+        ]}
+        isThreadChildrenExpanded={isThreadChildrenExpanded}
+        onToggleThreadChildren={onToggleThreadChildren}
+      />,
+    );
+
+    expect(screen.getByText("Pinned Gamma")).toBeTruthy();
   });
 });
