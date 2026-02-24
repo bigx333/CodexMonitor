@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,7 +8,7 @@ use tokio::task;
 use crate::codex::home::{resolve_default_codex_home, resolve_workspace_codex_home};
 use crate::types::WorkspaceEntry;
 
-#[derive(Serialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub(crate) struct CustomPromptEntry {
     pub(crate) name: String,
     pub(crate) path: String,

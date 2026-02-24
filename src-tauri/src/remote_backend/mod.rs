@@ -178,6 +178,7 @@ fn can_retry_after_disconnect(method: &str) -> bool {
             | "push_notification_state"
             | "push_register_device"
             | "push_unregister_device"
+            | "read_image_as_data_url"
             | "read_agent_config_toml"
             | "read_workspace_file"
             | "resume_thread"
@@ -271,6 +272,7 @@ mod tests {
         assert!(can_retry_after_disconnect("resume_thread"));
         assert!(can_retry_after_disconnect("list_threads"));
         assert!(can_retry_after_disconnect("local_usage_snapshot"));
+        assert!(can_retry_after_disconnect("read_image_as_data_url"));
         assert!(!can_retry_after_disconnect("send_user_message"));
         assert!(!can_retry_after_disconnect("start_thread"));
         assert!(!can_retry_after_disconnect("remove_workspace"));
