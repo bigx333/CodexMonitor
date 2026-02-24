@@ -43,6 +43,42 @@ fn extract_thread_id(value: &Value) -> Option<String> {
         .or_else(|| extract_from_container(value.get("result")))
 }
 
+fn extract_thread_spawn_parent_thread_id(value: &Value) -> Option<String> {
+    fn extract_from_source(source: Option<&Value>) -> Option<String> {
+        let source = source?;
+        let thread_spawn = source.get("thread_spawn").or_else(|| source.get("threadSpawn"))?;
+        thread_spawn
+            .get("parent_thread_id")
+            .or_else(|| thread_spawn.get("parentThreadId"))
+            .and_then(|value| value.as_str())
+            .map(|value| value.to_string())
+    }
+
+    extract_from_source(value.get("params").and_then(|params| params.get("thread")).and_then(
+        |thread| thread.get("source"),
+    ))
+    .or_else(|| {
+        extract_from_source(
+            value
+                .get("result")
+                .and_then(|result| result.get("thread"))
+                .and_then(|thread| thread.get("source")),
+        )
+    })
+}
+
+fn resolve_spawned_thread_workspace(
+    child_thread_id: &str,
+    value: &Value,
+    thread_workspace: &HashMap<String, String>,
+) -> Option<String> {
+    if child_thread_id.is_empty() {
+        return None;
+    }
+    let parent_thread_id = extract_thread_spawn_parent_thread_id(value)?;
+    thread_workspace.get(&parent_thread_id).cloned()
+}
+
 fn extract_turn_id(value: &Value) -> Option<String> {
     fn extract_from_container(container: Option<&Value>) -> Option<String> {
         let container = container?;
@@ -877,6 +913,21 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                     }
                 }
             }
+            if method_name.as_deref() == Some("thread/started") {
+                if let Some(ref child_thread_id) = thread_id {
+                    let parent_workspace_id = {
+                        let thread_workspace = session_clone.thread_workspace.lock().await;
+                        resolve_spawned_thread_workspace(child_thread_id, &value, &thread_workspace)
+                    };
+                    if let Some(parent_workspace_id) = parent_workspace_id {
+                        session_clone
+                            .thread_workspace
+                            .lock()
+                            .await
+                            .insert(child_thread_id.clone(), parent_workspace_id);
+                    }
+                }
+            }
 
             let routed_workspace_id = if let Some(ref tid) = thread_id {
                 session_clone
@@ -1126,9 +1177,10 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
 mod tests {
     use super::{
         build_initialize_params, can_retry_turn_start_error, extract_response_error_message,
-        extract_thread_entries_from_thread_list_result, extract_thread_id, extract_turn_error_details,
-        extract_turn_id, normalize_root_path, set_turn_error_will_retry, resolve_workspace_for_cwd,
-        TurnErrorDetails,
+        extract_thread_entries_from_thread_list_result, extract_thread_id,
+        extract_thread_spawn_parent_thread_id, extract_turn_error_details, extract_turn_id,
+        normalize_root_path, resolve_spawned_thread_workspace, resolve_workspace_for_cwd,
+        set_turn_error_will_retry, TurnErrorDetails,
     };
     use std::collections::HashMap;
     use serde_json::json;
@@ -1149,6 +1201,71 @@ mod tests {
     fn extract_thread_id_returns_none_when_missing() {
         let value = json!({ "params": {} });
         assert_eq!(extract_thread_id(&value), None);
+    }
+
+    #[test]
+    fn extract_thread_spawn_parent_thread_id_reads_snake_case_source() {
+        let value = json!({
+            "method": "thread/started",
+            "params": {
+                "thread": {
+                    "id": "thread-child",
+                    "source": {
+                        "thread_spawn": {
+                            "parent_thread_id": "thread-parent"
+                        }
+                    }
+                }
+            }
+        });
+        assert_eq!(
+            extract_thread_spawn_parent_thread_id(&value),
+            Some("thread-parent".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_thread_spawn_parent_thread_id_reads_camel_case_source() {
+        let value = json!({
+            "method": "thread/started",
+            "params": {
+                "thread": {
+                    "id": "thread-child",
+                    "source": {
+                        "threadSpawn": {
+                            "parentThreadId": "thread-parent"
+                        }
+                    }
+                }
+            }
+        });
+        assert_eq!(
+            extract_thread_spawn_parent_thread_id(&value),
+            Some("thread-parent".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_spawned_thread_workspace_uses_parent_thread_mapping() {
+        let value = json!({
+            "method": "thread/started",
+            "params": {
+                "thread": {
+                    "id": "thread-child",
+                    "source": {
+                        "thread_spawn": {
+                            "parent_thread_id": "thread-parent"
+                        }
+                    }
+                }
+            }
+        });
+        let mut thread_workspace = HashMap::new();
+        thread_workspace.insert("thread-parent".to_string(), "ws-2".to_string());
+        assert_eq!(
+            resolve_spawned_thread_workspace("thread-child", &value, &thread_workspace),
+            Some("ws-2".to_string())
+        );
     }
 
     #[test]
