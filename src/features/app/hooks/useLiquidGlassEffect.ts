@@ -21,37 +21,39 @@ export function useLiquidGlassEffect({ reduceTransparency, onDebug }: Params) {
     const apply = async () => {
       try {
         const window = getCurrentWindow();
+        const userAgent = navigator.userAgent ?? "";
+        const isMac = userAgent.includes("Macintosh");
+        const isLinux = userAgent.includes("Linux");
+        const isWindows = userAgent.includes("Windows");
+
         if (reduceTransparency) {
-          if (supportedRef.current === null) {
+          if (isMac && supportedRef.current === null) {
             supportedRef.current = await isGlassSupported();
           }
-          if (supportedRef.current) {
+          if (isMac && supportedRef.current) {
             await setLiquidGlassEffect({ enabled: false });
           }
           await window.setEffects({ effects: [] });
           return;
         }
 
-        if (supportedRef.current === null) {
-          supportedRef.current = await isGlassSupported();
+        if (isMac) {
+          if (supportedRef.current === null) {
+            supportedRef.current = await isGlassSupported();
+          }
+          if (cancelled) {
+            return;
+          }
+          if (supportedRef.current) {
+            await window.setEffects({ effects: [] });
+            await setLiquidGlassEffect({
+              enabled: true,
+              cornerRadius: 16,
+              variant: GlassMaterialVariant.Regular,
+            });
+            return;
+          }
         }
-        if (cancelled) {
-          return;
-        }
-        if (supportedRef.current) {
-          await window.setEffects({ effects: [] });
-          await setLiquidGlassEffect({
-            enabled: true,
-            cornerRadius: 16,
-            variant: GlassMaterialVariant.Regular,
-          });
-          return;
-        }
-
-        const userAgent = navigator.userAgent ?? "";
-        const isMac = userAgent.includes("Macintosh");
-        const isLinux = userAgent.includes("Linux");
-        const isWindows = userAgent.includes("Windows");
 
         if (isWindows) {
           await window.setEffects({
@@ -61,7 +63,7 @@ export function useLiquidGlassEffect({ reduceTransparency, onDebug }: Params) {
           return;
         }
 
-        if (!isMac && !isLinux) {
+        if (!isLinux && !isMac) {
           return;
         }
         await window.setEffects({

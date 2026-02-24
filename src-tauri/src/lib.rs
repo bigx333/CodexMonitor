@@ -166,13 +166,16 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
 
-    let app = builder
-        .plugin(tauri_plugin_liquid_glass::init())
+    let builder = builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_notification::init())
-        .invoke_handler(tauri::generate_handler![
+        .plugin(tauri_plugin_notification::init());
+
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(tauri_plugin_liquid_glass::init());
+
+    let app = builder.invoke_handler(tauri::generate_handler![
             settings::get_app_settings,
             settings::update_app_settings,
             settings::get_codex_config_path,
