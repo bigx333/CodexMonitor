@@ -856,6 +856,87 @@ describe("Messages", () => {
     });
   });
 
+  it("renders a virtualized subset for long histories", async () => {
+    const items: ConversationItem[] = Array.from({ length: 120 }, (_, index) => ({
+      id: `msg-${index}`,
+      kind: "message",
+      role: index % 2 === 0 ? "assistant" : "user",
+      text: `Message ${index}`,
+    }));
+
+    const { container } = render(
+      <Messages
+        items={items}
+        threadId="thread-long"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelectorAll("[data-index]").length).toBeGreaterThan(0);
+    });
+
+    const renderedRows = container.querySelectorAll("[data-index]").length;
+    expect(renderedRows).toBeLessThan(items.length);
+  });
+
+  it("collapses and re-expands grouped tool rows", async () => {
+    const items: ConversationItem[] = [
+      {
+        id: "tool-collapse-1",
+        kind: "tool",
+        toolType: "commandExecution",
+        title: "Command: rg Messages",
+        detail: "/repo",
+        status: "completed",
+        output: "",
+      },
+      {
+        id: "tool-collapse-2",
+        kind: "tool",
+        toolType: "commandExecution",
+        title: "Command: rg useThreads",
+        detail: "/repo",
+        status: "completed",
+        output: "",
+      },
+      {
+        id: "explore-collapse",
+        kind: "explore",
+        status: "explored",
+        entries: [{ kind: "read", label: "Messages.tsx" }],
+      },
+    ];
+
+    render(
+      <Messages
+        items={items}
+        threadId="thread-collapse"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("3 tool calls")).toBeTruthy();
+    });
+    expect(screen.getByText("rg Messages")).toBeTruthy();
+    expect(screen.getByText("rg useThreads")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse tool calls" }));
+    expect(screen.queryByText("rg Messages")).toBeNull();
+    expect(screen.queryByText("rg useThreads")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand tool calls" }));
+    expect(screen.getByText("rg Messages")).toBeTruthy();
+    expect(screen.getByText("rg useThreads")).toBeTruthy();
+  });
+
   it("re-pins to bottom on thread switch even when previous thread was scrolled up", () => {
     const items: ConversationItem[] = [
       {
