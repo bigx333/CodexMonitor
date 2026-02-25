@@ -14,28 +14,28 @@ Read when: planning medium/large architecture changes, remote-mode reliability w
 
 ### TODO List
 
-- [ ] `R0.1` Add remote multi-workspace sub-agent routing regression suite.
+- [x] `R0.1` Add remote multi-workspace sub-agent routing regression suite.
   - Deliverable: failing tests for known bad paths, then green with fix.
   - Files: `src-tauri/src/backend/app_server.rs`, `src/features/threads/hooks/useThreads.integration.test.tsx`
   - Effort: `M`
   - Risk: `Low`
   - Depends on: none
 
-- [ ] `R0.2` Add RPC parity test (frontend command names vs Tauri handler vs daemon RPC).
+- [x] `R0.2` Add RPC parity test (frontend command names vs Tauri handler vs daemon RPC).
   - Deliverable: CI test that fails on command drift.
   - Files: `src/services/tauri.ts`, `src-tauri/src/lib.rs`, `src-tauri/src/bin/codex_monitor_daemon/rpc/*`
   - Effort: `M`
   - Risk: `Low`
   - Depends on: none
 
-- [ ] `R0.3` CI rust quality gates (`cargo fmt --check`, `cargo clippy -D warnings`).
+- [x] `R0.3` CI rust quality gates (`cargo fmt --check`, `cargo clippy -D warnings`).
   - Deliverable: CI jobs + passing baseline.
   - Files: `.github/workflows/ci.yml`
   - Effort: `S`
   - Risk: `Low`
   - Depends on: none
 
-- [ ] `R0.4` Virtualization hardening pass (already implemented; now correctness/perf checks).
+- [x] `R0.4` Virtualization hardening pass (already implemented; now correctness/perf checks).
   - Deliverable: tests and guardrails for dynamic heights, collapse/expand, bottom-anchor scrolling.
   - Files: `src/features/messages/components/Messages.tsx`, `src/features/messages/components/Messages.test.tsx`
   - Effort: `S-M`
@@ -44,7 +44,7 @@ Read when: planning medium/large architecture changes, remote-mode reliability w
 
 ### Checkpoint `CP0`
 
-- [ ] `CP0.A` All `R0.*` merged.
+- [x] `CP0.A` All `R0.*` merged.
 - [ ] `CP0.B` `npm run test`, `npm run typecheck`, `cd src-tauri && cargo test && cargo check` green in CI.
 - [ ] `CP0.C` No known remote thread mis-routing repro left open.
 
@@ -52,7 +52,7 @@ Read when: planning medium/large architecture changes, remote-mode reliability w
 
 ### TODO List
 
-- [ ] `R1.1` Type-hardening pass for frontend RPC boundaries (`invoke<any>` reduction).
+- [ ] `R1.1` Type-hardening pass for frontend RPC boundaries (`invoke<any>` reduction). (in progress)
   - Deliverable: typed wrappers for highest-risk calls (`threads`, `turn`, `account`, `apps`, `prompts`).
   - Files: `src/services/tauri.ts`, `src/features/*/hooks/*`
   - Effort: `M`
@@ -66,7 +66,7 @@ Read when: planning medium/large architecture changes, remote-mode reliability w
   - Risk: `Med`
   - Depends on: `R1.1`
 
-- [ ] `R1.3` Remove low-value parser duplication in event hub wrappers.
+- [x] `R1.3` Remove low-value parser duplication in event hub wrappers.
   - Deliverable: reduced boilerplate; no duplicate method hubs.
   - Files: `src/services/events.ts`
   - Effort: `S`
