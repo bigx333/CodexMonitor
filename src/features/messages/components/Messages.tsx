@@ -7,6 +7,8 @@ import {
   useRef,
   useState,
 } from "react";
+import type { ReactNode, RefObject } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
 import ChevronUp from "lucide-react/dist/esm/icons/chevron-up";
 import type {
@@ -24,6 +26,7 @@ import {
   buildToolGroups,
   computePlanFollowupState,
   formatCount,
+  type MessageListEntry,
   parseReasoning,
   scrollKeyForItems,
 } from "../utils/messageRenderUtils";
@@ -74,6 +77,100 @@ function toMarkdownQuote(text: string): string {
     .join("\n")
     .concat("\n\n");
 }
+
+type VirtualizedGroupedListProps = {
+  containerRef: RefObject<HTMLDivElement | null>;
+  groupedItems: MessageListEntry[];
+  collapsedToolGroups: Set<string>;
+  expandedItems: Set<string>;
+  groupedEntryKey: (entry: MessageListEntry, index: number) => string;
+  renderGroupedEntry: (entry: MessageListEntry) => ReactNode;
+  requestAutoScroll: () => void;
+};
+
+const VirtualizedGroupedList = memo(function VirtualizedGroupedList({
+  containerRef,
+  groupedItems,
+  collapsedToolGroups,
+  expandedItems,
+  groupedEntryKey,
+  renderGroupedEntry,
+  requestAutoScroll,
+}: VirtualizedGroupedListProps) {
+  const virtualizer = useVirtualizer({
+    count: groupedItems.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => 80,
+    initialRect: { width: 0, height: 800 },
+    overscan: 5,
+    getItemKey: (index) => {
+      const entry = groupedItems[index];
+      if (!entry) {
+        return `entry-${index}`;
+      }
+      return groupedEntryKey(entry, index);
+    },
+  });
+  const virtualItems = virtualizer.getVirtualItems();
+  const virtualTotalSize = virtualizer.getTotalSize();
+  const bootstrapVirtualItems = useMemo(() => {
+    if (virtualItems.length > 0 || groupedItems.length === 0) {
+      return [];
+    }
+    const bootstrapCount = Math.min(groupedItems.length, 15);
+    return Array.from({ length: bootstrapCount }, (_, index) => ({
+      key: groupedEntryKey(groupedItems[index], index),
+      index,
+      start: index * 80,
+    }));
+  }, [groupedEntryKey, groupedItems, virtualItems]);
+  const rowsToRender =
+    virtualItems.length > 0 ? virtualItems : bootstrapVirtualItems;
+  const virtualCanvasHeight =
+    virtualItems.length > 0 ? virtualTotalSize : groupedItems.length * 80;
+
+  useLayoutEffect(() => {
+    virtualizer.measure();
+  }, [collapsedToolGroups, expandedItems, groupedItems, virtualizer]);
+
+  useLayoutEffect(() => {
+    requestAutoScroll();
+  }, [requestAutoScroll, virtualCanvasHeight]);
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        height: `${virtualCanvasHeight}px`,
+      }}
+    >
+      {rowsToRender.map((virtualItem) => {
+        const entry = groupedItems[virtualItem.index];
+        if (!entry) {
+          return null;
+        }
+        return (
+          <div
+            key={virtualItem.key}
+            data-index={virtualItem.index}
+            ref={virtualizer.measureElement}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              display: "flex",
+              flexDirection: "column",
+              transform: `translateY(${virtualItem.start}px)`,
+            }}
+          >
+            {renderGroupedEntry(entry)}
+          </div>
+        );
+      })}
+    </div>
+  );
+});
 
 export const Messages = memo(function Messages({
   items,
@@ -287,6 +384,14 @@ export const Messages = memo(function Messages({
     [onQuoteMessage],
   );
 
+  const groupedItems = useMemo(() => buildToolGroups(visibleItems), [visibleItems]);
+  const groupedEntryKey = useCallback((entry: MessageListEntry, index: number) => {
+    if (entry.kind === "toolGroup") {
+      return `tool-group-${entry.group.id}`;
+    }
+    return entry.item.id || `item-${index}`;
+  }, []);
+
   useLayoutEffect(() => {
     const container = containerRef.current;
     const shouldScroll =
@@ -301,8 +406,6 @@ export const Messages = memo(function Messages({
     }
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [scrollKey, isThinking, isNearBottom, threadId]);
-
-  const groupedItems = useMemo(() => buildToolGroups(visibleItems), [visibleItems]);
 
   const hasActiveUserInputRequest = activeUserInputRequestId !== null;
   const hasVisibleUserInputRequest = hasActiveUserInputRequest && Boolean(onUserInputSubmit);
@@ -448,55 +551,65 @@ export const Messages = memo(function Messages({
     return null;
   };
 
+  const renderGroupedEntry = (entry: MessageListEntry) => {
+    if (entry.kind === "toolGroup") {
+      const { group } = entry;
+      const isCollapsed = collapsedToolGroups.has(group.id);
+      const summaryParts = [
+        formatCount(group.toolCount, "tool call", "tool calls"),
+      ];
+      if (group.messageCount > 0) {
+        summaryParts.push(formatCount(group.messageCount, "message", "messages"));
+      }
+      const summaryText = summaryParts.join(", ");
+      const groupBodyId = `tool-group-${group.id}`;
+      const ChevronIcon = isCollapsed ? ChevronDown : ChevronUp;
+      return (
+        <div
+          key={`tool-group-${group.id}`}
+          className={`tool-group ${isCollapsed ? "tool-group-collapsed" : ""}`}
+        >
+          <div className="tool-group-header">
+            <button
+              type="button"
+              className="tool-group-toggle"
+              onClick={() => toggleToolGroup(group.id)}
+              aria-expanded={!isCollapsed}
+              aria-controls={groupBodyId}
+              aria-label={isCollapsed ? "Expand tool calls" : "Collapse tool calls"}
+            >
+              <span className="tool-group-chevron" aria-hidden>
+                <ChevronIcon size={14} />
+              </span>
+              <span className="tool-group-summary">{summaryText}</span>
+            </button>
+          </div>
+          {!isCollapsed && (
+            <div className="tool-group-body" id={groupBodyId}>
+              {group.items.map(renderItem)}
+            </div>
+          )}
+        </div>
+      );
+    }
+    return renderItem(entry.item);
+  };
+
   return (
     <div
       className="messages messages-full"
       ref={containerRef}
       onScroll={updateAutoScroll}
     >
-      {groupedItems.map((entry) => {
-        if (entry.kind === "toolGroup") {
-          const { group } = entry;
-          const isCollapsed = collapsedToolGroups.has(group.id);
-          const summaryParts = [
-            formatCount(group.toolCount, "tool call", "tool calls"),
-          ];
-          if (group.messageCount > 0) {
-            summaryParts.push(formatCount(group.messageCount, "message", "messages"));
-          }
-          const summaryText = summaryParts.join(", ");
-          const groupBodyId = `tool-group-${group.id}`;
-          const ChevronIcon = isCollapsed ? ChevronDown : ChevronUp;
-          return (
-            <div
-              key={`tool-group-${group.id}`}
-              className={`tool-group ${isCollapsed ? "tool-group-collapsed" : ""}`}
-            >
-              <div className="tool-group-header">
-                <button
-                  type="button"
-                  className="tool-group-toggle"
-                  onClick={() => toggleToolGroup(group.id)}
-                  aria-expanded={!isCollapsed}
-                  aria-controls={groupBodyId}
-                  aria-label={isCollapsed ? "Expand tool calls" : "Collapse tool calls"}
-                >
-                  <span className="tool-group-chevron" aria-hidden>
-                    <ChevronIcon size={14} />
-                  </span>
-                  <span className="tool-group-summary">{summaryText}</span>
-                </button>
-              </div>
-              {!isCollapsed && (
-                <div className="tool-group-body" id={groupBodyId}>
-                  {group.items.map(renderItem)}
-                </div>
-              )}
-            </div>
-          );
-        }
-        return renderItem(entry.item);
-      })}
+      <VirtualizedGroupedList
+        containerRef={containerRef}
+        groupedItems={groupedItems}
+        collapsedToolGroups={collapsedToolGroups}
+        expandedItems={expandedItems}
+        groupedEntryKey={groupedEntryKey}
+        renderGroupedEntry={renderGroupedEntry}
+        requestAutoScroll={requestAutoScroll}
+      />
       {planFollowupNode}
       {userInputNode}
       <WorkingIndicator
