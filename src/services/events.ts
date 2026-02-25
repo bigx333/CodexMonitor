@@ -105,12 +105,10 @@ const menuCycleModelHub = createEventHub<void>("menu-composer-cycle-model");
 const menuCycleAccessHub = createEventHub<void>("menu-composer-cycle-access");
 const menuCycleReasoningHub = createEventHub<void>("menu-composer-cycle-reasoning");
 const menuCycleCollaborationHub = createEventHub<void>("menu-composer-cycle-collaboration");
-const menuComposerCycleModelHub = createEventHub<void>("menu-composer-cycle-model");
-const menuComposerCycleAccessHub = createEventHub<void>("menu-composer-cycle-access");
-const menuComposerCycleReasoningHub = createEventHub<void>("menu-composer-cycle-reasoning");
-const menuComposerCycleCollaborationHub = createEventHub<void>(
-  "menu-composer-cycle-collaboration",
-);
+const menuComposerCycleModelHub = menuCycleModelHub;
+const menuComposerCycleAccessHub = menuCycleAccessHub;
+const menuComposerCycleReasoningHub = menuCycleReasoningHub;
+const menuComposerCycleCollaborationHub = menuCycleCollaborationHub;
 
 export function subscribeAppServerEvents(
   onEvent: (event: AppServerEvent) => void,
