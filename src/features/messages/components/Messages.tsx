@@ -134,6 +134,45 @@ const VirtualizedGroupedList = memo(function VirtualizedGroupedList({
   }, [collapsedToolGroups, expandedItems, groupedItems, virtualizer]);
 
   useLayoutEffect(() => {
+    const remeasure = () => {
+      virtualizer.measure();
+    };
+
+    const viewport = window.visualViewport;
+    const resizeObserver = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(() => {
+          remeasure();
+        });
+    let observedContainer: Element | null = null;
+    const observeContainer = () => {
+      const container = containerRef.current;
+      if (!container || !resizeObserver) {
+        return;
+      }
+      resizeObserver.observe(container);
+      observedContainer = container;
+    };
+
+    observeContainer();
+    const observeFrameId = window.requestAnimationFrame(observeContainer);
+    window.addEventListener("resize", remeasure, { passive: true });
+    window.addEventListener("orientationchange", remeasure, { passive: true });
+    viewport?.addEventListener("resize", remeasure, { passive: true });
+
+    return () => {
+      window.cancelAnimationFrame(observeFrameId);
+      if (observedContainer) {
+        resizeObserver?.unobserve(observedContainer);
+      }
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", remeasure);
+      window.removeEventListener("orientationchange", remeasure);
+      viewport?.removeEventListener("resize", remeasure);
+    };
+  }, [containerRef, virtualizer]);
+
+  useLayoutEffect(() => {
     requestAutoScroll();
   }, [requestAutoScroll, virtualCanvasHeight]);
 
