@@ -315,6 +315,21 @@ fn normalize_root_path(value: &str) -> String {
     }
 }
 
+fn normalize_path_for_matching(value: &str) -> String {
+    let normalized = normalize_root_path(value);
+    if normalized.is_empty() {
+        return normalized;
+    }
+
+    let canonicalized = std::fs::canonicalize(Path::new(value))
+        .ok()
+        .and_then(|path| path.to_str().map(|value| normalize_root_path(value)));
+    match canonicalized {
+        Some(canonicalized) if !canonicalized.is_empty() => canonicalized,
+        _ => normalized,
+    }
+}
+
 #[derive(Debug, Clone)]
 struct ThreadListEntry {
     thread_id: String,
@@ -382,7 +397,7 @@ fn resolve_workspace_for_cwd(
     cwd: &str,
     workspace_roots: &HashMap<String, String>,
 ) -> Option<String> {
-    let normalized_cwd = normalize_root_path(cwd);
+    let normalized_cwd = normalize_path_for_matching(cwd);
     if normalized_cwd.is_empty() {
         return None;
     }
@@ -503,7 +518,7 @@ impl WorkspaceSession {
             .await
             .insert(workspace_id.to_string());
         if let Some(path) = workspace_path {
-            let normalized = normalize_root_path(path);
+            let normalized = normalize_path_for_matching(path);
             if !normalized.is_empty() {
                 self.workspace_roots
                     .lock()
@@ -891,7 +906,7 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
         workspace_ids: Mutex::new(HashSet::from([entry.id.clone()])),
         workspace_roots: Mutex::new(HashMap::from([(
             entry.id.clone(),
-            normalize_root_path(&entry.path),
+            normalize_path_for_matching(&entry.path),
         )])),
         turn_start_retry_context: Mutex::new(HashMap::new()),
     });
@@ -1245,9 +1260,9 @@ mod tests {
         build_initialize_params, can_retry_turn_start_error, extract_response_error_message,
         extract_thread_cwd, extract_thread_entries_from_thread_list_result, extract_thread_id,
         extract_thread_spawn_parent_thread_id, extract_turn_error_details, extract_turn_id,
-        normalize_root_path, resolve_routed_workspace_id, resolve_spawned_thread_workspace,
-        resolve_started_thread_workspace, resolve_workspace_for_cwd, set_turn_error_will_retry,
-        TurnErrorDetails,
+        normalize_path_for_matching, normalize_root_path, resolve_routed_workspace_id,
+        resolve_spawned_thread_workspace, resolve_started_thread_workspace,
+        resolve_workspace_for_cwd, set_turn_error_will_retry, TurnErrorDetails,
     };
     use std::collections::HashMap;
     use serde_json::json;
@@ -1563,6 +1578,37 @@ mod tests {
             resolve_workspace_for_cwd("/tmp/codex/subdir/project", &roots),
             Some("ws-child".to_string())
         );
+    }
+
+    #[test]
+    fn resolve_workspace_for_cwd_matches_canonicalized_paths() {
+        let unique = format!(
+            "codex-monitor-route-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        );
+        let root = std::env::temp_dir().join(unique);
+        let project = root.join("project");
+        let nested = project.join("subdir");
+        std::fs::create_dir_all(&nested).expect("create dirs");
+
+        let workspace_input = project.join(".");
+        let cwd_input = nested.join("..").join("subdir");
+
+        let mut roots = HashMap::new();
+        roots.insert(
+            "ws-1".to_string(),
+            normalize_path_for_matching(&workspace_input.to_string_lossy()),
+        );
+        assert_eq!(
+            resolve_workspace_for_cwd(&cwd_input.to_string_lossy(), &roots),
+            Some("ws-1".to_string())
+        );
+
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
