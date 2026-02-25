@@ -4,9 +4,14 @@ import type { AppServerEvent } from "../types";
 import {
   METHODS_HANDLED_OUTSIDE_USE_APP_SERVER_EVENTS,
   SUPPORTED_APP_SERVER_METHODS,
+  getAppServerNullableStringParam,
   getAppServerParams,
+  getAppServerParamValue,
+  getAppServerRecordParam,
   getAppServerRawMethod,
   getAppServerRequestId,
+  getAppServerStringParam,
+  getAppServerTrimmedStringParam,
   isApprovalRequestMethod,
   isAppListUpdatedEvent,
   isSkillsUpdateAvailableEvent,
@@ -87,6 +92,23 @@ describe("appServerEvents", () => {
     expect(getAppServerRequestId(missingMessage)).toBeNull();
     expect(getAppServerRequestId(nonObjectMessage)).toBeNull();
     expect(getAppServerRequestId(arrayMessage)).toBeNull();
+  });
+
+  it("normalizes camelCase and snake_case param access", () => {
+    const params = {
+      thread_id: "thread-1",
+      turnId: "turn-1",
+      item_id: 7,
+      thread_name: "  inbox  ",
+      status: { type: "active" },
+    };
+
+    expect(getAppServerParamValue(params, "threadId")).toBe("thread-1");
+    expect(getAppServerStringParam(params, "itemId")).toBe("7");
+    expect(getAppServerStringParam(params, "turnId")).toBe("turn-1");
+    expect(getAppServerTrimmedStringParam(params, "threadName")).toBe("inbox");
+    expect(getAppServerNullableStringParam(params, "missingValue")).toBeNull();
+    expect(getAppServerRecordParam(params, "status")).toEqual({ type: "active" });
   });
 
   it("keeps supported methods aligned with useAppServerEvents routing", () => {

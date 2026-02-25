@@ -41,6 +41,14 @@ export const METHODS_HANDLED_OUTSIDE_USE_APP_SERVER_EVENTS = [
 
 const SUPPORTED_METHOD_SET = new Set<string>(SUPPORTED_APP_SERVER_METHODS);
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function toSnakeCaseKey(key: string): string {
+  return key.replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`);
+}
+
 function getAppServerMessageObject(
   event: AppServerEvent,
 ): Record<string, unknown> | null {
@@ -79,10 +87,10 @@ export function getAppServerParams(event: AppServerEvent): Record<string, unknow
     return {};
   }
   const params = message.params;
-  if (!params || typeof params !== "object" || Array.isArray(params)) {
+  if (!isObjectRecord(params)) {
     return {};
   }
-  return params as Record<string, unknown>;
+  return params;
 }
 
 export function getAppServerRequestId(event: AppServerEvent): string | number | null {
@@ -95,6 +103,60 @@ export function getAppServerRequestId(event: AppServerEvent): string | number | 
     return requestId;
   }
   return null;
+}
+
+export function getAppServerParamValue(
+  params: Record<string, unknown>,
+  key: string,
+): unknown {
+  if (Object.prototype.hasOwnProperty.call(params, key)) {
+    return params[key];
+  }
+  const snakeCaseKey = toSnakeCaseKey(key);
+  if (
+    snakeCaseKey !== key &&
+    Object.prototype.hasOwnProperty.call(params, snakeCaseKey)
+  ) {
+    return params[snakeCaseKey];
+  }
+  return undefined;
+}
+
+export function getAppServerStringParam(
+  params: Record<string, unknown>,
+  key: string,
+): string {
+  const value = getAppServerParamValue(params, key);
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value);
+}
+
+export function getAppServerTrimmedStringParam(
+  params: Record<string, unknown>,
+  key: string,
+): string {
+  return getAppServerStringParam(params, key).trim();
+}
+
+export function getAppServerNullableStringParam(
+  params: Record<string, unknown>,
+  key: string,
+): string | null {
+  const value = getAppServerTrimmedStringParam(params, key);
+  return value.length > 0 ? value : null;
+}
+
+export function getAppServerRecordParam(
+  params: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | null {
+  const value = getAppServerParamValue(params, key);
+  return isObjectRecord(value) ? value : null;
 }
 
 export function isApprovalRequestMethod(method: string): boolean {

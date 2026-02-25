@@ -59,7 +59,7 @@ Read when: planning medium/large architecture changes, remote-mode reliability w
   - Risk: `Med`
   - Depends on: `R0.2`
 
-- [ ] `R1.2` Replace long app-server event `if` chain with handler registry + decoders.
+- [x] `R1.2` Replace long app-server event `if` chain with handler registry + decoders.
   - Deliverable: one route table; per-method decoder; centralized casing normalization.
   - Files: `src/features/app/hooks/useAppServerEvents.ts`, `src/utils/appServerEvents.ts`, `src/features/threads/utils/threadNormalize.ts`
   - Effort: `M`
@@ -75,7 +75,7 @@ Read when: planning medium/large architecture changes, remote-mode reliability w
 
 ### Checkpoint `CP1`
 
-- [ ] `CP1.A` Event route table/decoder coverage includes all currently supported methods.
+- [x] `CP1.A` Event route table/decoder coverage includes all currently supported methods.
 - [ ] `CP1.B` `any` usage reduced on prioritized boundary paths.
 - [ ] `CP1.C` No behavior regression in thread/message event flows.
 
