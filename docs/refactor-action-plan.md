@@ -83,9 +83,12 @@ Read when: planning medium/large architecture changes, remote-mode reliability w
 
 ### TODO List
 
-- [ ] `R2.1` Decompose `MainApp` into bounded orchestration modules.
+- [ ] `R2.1` Decompose `MainApp` into bounded orchestration modules. (in progress)
   - Deliverable: `src/App.tsx` reduced to composition shell + feature orchestrators.
   - Files: `src/App.tsx`, `src/features/app/orchestration/*`, `src/features/app/hooks/*`
+  - Progress:
+    - [x] Extracted prompt CRUD/reveal callbacks into `usePromptOrchestration`.
+    - [ ] Extract remaining large orchestration clusters (git panel + terminal/worktree flows).
   - Effort: `M`
   - Risk: `Med`
   - Depends on: `CP1`

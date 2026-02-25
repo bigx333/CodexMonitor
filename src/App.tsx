@@ -76,7 +76,6 @@ import { useWorkspaceRestore } from "@/features/workspaces/hooks/useWorkspaceRes
 import { useRenameWorktreePrompt } from "@/features/workspaces/hooks/useRenameWorktreePrompt";
 import { useLayoutController } from "@app/hooks/useLayoutController";
 import { useWindowLabel } from "@/features/layout/hooks/useWindowLabel";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   SidebarCollapseButton,
   TitlebarExpandControls,
@@ -153,6 +152,7 @@ import {
   useWorkspaceOrderingOrchestration,
 } from "@app/orchestration/useWorkspaceOrchestration";
 import { useAppShellOrchestration } from "@app/orchestration/useLayoutOrchestration";
+import { usePromptOrchestration } from "@app/orchestration/usePromptOrchestration";
 import { buildCodexArgsOptions } from "@threads/utils/codexArgsProfiles";
 import { normalizeCodexArgsInput } from "@/utils/codexArgsInput";
 import {
@@ -1634,82 +1634,22 @@ function MainApp() {
   );
 
 
-  const handleCreatePrompt = useCallback(
-    async (data: {
-      scope: "workspace" | "global";
-      name: string;
-      description?: string | null;
-      argumentHint?: string | null;
-      content: string;
-    }) => {
-      try {
-        await createPrompt(data);
-      } catch (error) {
-        alertError(error);
-      }
-    },
-    [alertError, createPrompt],
-  );
-
-  const handleUpdatePrompt = useCallback(
-    async (data: {
-      path: string;
-      name: string;
-      description?: string | null;
-      argumentHint?: string | null;
-      content: string;
-    }) => {
-      try {
-        await updatePrompt(data);
-      } catch (error) {
-        alertError(error);
-      }
-    },
-    [alertError, updatePrompt],
-  );
-
-  const handleDeletePrompt = useCallback(
-    async (path: string) => {
-      try {
-        await deletePrompt(path);
-      } catch (error) {
-        alertError(error);
-      }
-    },
-    [alertError, deletePrompt],
-  );
-
-  const handleMovePrompt = useCallback(
-    async (data: { path: string; scope: "workspace" | "global" }) => {
-      try {
-        await movePrompt(data);
-      } catch (error) {
-        alertError(error);
-      }
-    },
-    [alertError, movePrompt],
-  );
-
-  const handleRevealWorkspacePrompts = useCallback(async () => {
-    try {
-      const path = await getWorkspacePromptsDir();
-      await revealItemInDir(path);
-    } catch (error) {
-      alertError(error);
-    }
-  }, [alertError, getWorkspacePromptsDir]);
-
-  const handleRevealGeneralPrompts = useCallback(async () => {
-    try {
-      const path = await getGlobalPromptsDir();
-      if (!path) {
-        return;
-      }
-      await revealItemInDir(path);
-    } catch (error) {
-      alertError(error);
-    }
-  }, [alertError, getGlobalPromptsDir]);
+  const {
+    handleCreatePrompt,
+    handleUpdatePrompt,
+    handleDeletePrompt,
+    handleMovePrompt,
+    handleRevealWorkspacePrompts,
+    handleRevealGeneralPrompts,
+  } = usePromptOrchestration({
+    createPrompt,
+    updatePrompt,
+    deletePrompt,
+    movePrompt,
+    getWorkspacePromptsDir,
+    getGlobalPromptsDir,
+    onError: alertError,
+  });
 
   const isWorktreeWorkspace = activeWorkspace?.kind === "worktree";
   const activeParentWorkspace = isWorktreeWorkspace
