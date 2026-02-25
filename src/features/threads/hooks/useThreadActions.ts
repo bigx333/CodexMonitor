@@ -158,8 +158,19 @@ export function useThreadActions({
   threadStatusByIdRef.current = threadStatusById;
   activeTurnIdByThreadRef.current = activeTurnIdByThread;
 
-  const extractThreadId = useCallback((response: Record<string, any>) => {
-    const thread = response.result?.thread ?? response.thread ?? null;
+  const extractThreadId = useCallback((response: unknown) => {
+    const responseRecord =
+      response && typeof response === "object"
+        ? (response as Record<string, unknown>)
+        : null;
+    const responseResult =
+      responseRecord?.result && typeof responseRecord.result === "object"
+        ? (responseRecord.result as Record<string, unknown>)
+        : null;
+    const thread =
+      (responseResult?.thread as Record<string, unknown> | undefined) ??
+      (responseRecord?.thread as Record<string, unknown> | undefined) ??
+      null;
     return String(thread?.id ?? "");
   }, []);
 

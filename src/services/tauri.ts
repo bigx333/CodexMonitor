@@ -372,15 +372,15 @@ export async function setWorkspaceRuntimeCodexArgs(
 }
 
 export async function startThread(workspaceId: string) {
-  return invoke<any>("start_thread", { workspaceId });
+  return invoke<unknown>("start_thread", { workspaceId });
 }
 
 export async function forkThread(workspaceId: string, threadId: string) {
-  return invoke<any>("fork_thread", { workspaceId, threadId });
+  return invoke<unknown>("fork_thread", { workspaceId, threadId });
 }
 
 export async function compactThread(workspaceId: string, threadId: string) {
-  return invoke<any>("compact_thread", { workspaceId, threadId });
+  return invoke<unknown>("compact_thread", { workspaceId, threadId });
 }
 
 function isInlineImageUrl(image: string) {
@@ -718,7 +718,7 @@ export async function localUsageSnapshot(
 }
 
 export async function getModelList(workspaceId: string) {
-  return invoke<any>("model_list", { workspaceId });
+  return invoke<unknown>("model_list", { workspaceId });
 }
 
 export async function getExperimentalFeatureList(
@@ -726,7 +726,7 @@ export async function getExperimentalFeatureList(
   cursor?: string | null,
   limit?: number | null,
 ) {
-  return invoke<any>("experimental_feature_list", { workspaceId, cursor, limit });
+  return invoke<unknown>("experimental_feature_list", { workspaceId, cursor, limit });
 }
 
 export async function setCodexFeatureFlag(
@@ -744,15 +744,15 @@ export async function generateRunMetadata(workspaceId: string, prompt: string) {
 }
 
 export async function getCollaborationModes(workspaceId: string) {
-  return invoke<any>("collaboration_mode_list", { workspaceId });
+  return invoke<unknown>("collaboration_mode_list", { workspaceId });
 }
 
 export async function getAccountRateLimits(workspaceId: string) {
-  return invoke<any>("account_rate_limits", { workspaceId });
+  return invoke<unknown>("account_rate_limits", { workspaceId });
 }
 
 export async function getAccountInfo(workspaceId: string) {
-  return invoke<any>("account_read", { workspaceId });
+  return invoke<unknown>("account_read", { workspaceId });
 }
 
 export async function runCodexLogin(workspaceId: string) {
@@ -769,7 +769,7 @@ export async function cancelCodexLogin(workspaceId: string) {
 }
 
 export async function getSkillsList(workspaceId: string) {
-  return invoke<any>("skills_list", { workspaceId });
+  return invoke<unknown>("skills_list", { workspaceId });
 }
 
 export async function getAppsList(
@@ -778,11 +778,11 @@ export async function getAppsList(
   limit?: number | null,
   threadId?: string | null,
 ) {
-  return invoke<any>("apps_list", { workspaceId, cursor, limit, threadId });
+  return invoke<unknown>("apps_list", { workspaceId, cursor, limit, threadId });
 }
 
 export async function getPromptsList(workspaceId: string) {
-  return invoke<any>("prompts_list", { workspaceId });
+  return invoke<unknown>("prompts_list", { workspaceId });
 }
 
 export async function getWorkspacePromptsDir(workspaceId: string) {
@@ -803,7 +803,7 @@ export async function createPrompt(
     content: string;
   },
 ) {
-  return invoke<any>("prompts_create", {
+  return invoke<unknown>("prompts_create", {
     workspaceId,
     scope: data.scope,
     name: data.name,
@@ -823,7 +823,7 @@ export async function updatePrompt(
     content: string;
   },
 ) {
-  return invoke<any>("prompts_update", {
+  return invoke<unknown>("prompts_update", {
     workspaceId,
     path: data.path,
     name: data.name,
@@ -834,14 +834,14 @@ export async function updatePrompt(
 }
 
 export async function deletePrompt(workspaceId: string, path: string) {
-  return invoke<any>("prompts_delete", { workspaceId, path });
+  return invoke<unknown>("prompts_delete", { workspaceId, path });
 }
 
 export async function movePrompt(
   workspaceId: string,
   data: { path: string; scope: "workspace" | "global" },
 ) {
-  return invoke<any>("prompts_move", {
+  return invoke<unknown>("prompts_move", {
     workspaceId,
     path: data.path,
     scope: data.scope,
@@ -1023,7 +1023,7 @@ export async function writeAgentMd(workspaceId: string, content: string): Promis
 }
 
 export async function listGitBranches(workspaceId: string) {
-  return invoke<any>("list_git_branches", { workspaceId });
+  return invoke<unknown>("list_git_branches", { workspaceId });
 }
 
 export async function checkoutGitBranch(workspaceId: string, name: string) {
@@ -1152,7 +1152,7 @@ export async function listThreads(
   limit?: number | null,
   sortKey?: "created_at" | "updated_at" | null,
 ) {
-  return invoke<any>("list_threads", { workspaceId, cursor, limit, sortKey });
+  return invoke<unknown>("list_threads", { workspaceId, cursor, limit, sortKey });
 }
 
 export async function listMcpServerStatus(
@@ -1160,23 +1160,23 @@ export async function listMcpServerStatus(
   cursor?: string | null,
   limit?: number | null,
 ) {
-  return invoke<any>("list_mcp_server_status", { workspaceId, cursor, limit });
+  return invoke<unknown>("list_mcp_server_status", { workspaceId, cursor, limit });
 }
 
 export async function resumeThread(workspaceId: string, threadId: string) {
-  return invoke<any>("resume_thread", { workspaceId, threadId });
+  return invoke<unknown>("resume_thread", { workspaceId, threadId });
 }
 
 export async function threadLiveSubscribe(workspaceId: string, threadId: string) {
-  return invoke<any>("thread_live_subscribe", { workspaceId, threadId });
+  return invoke<unknown>("thread_live_subscribe", { workspaceId, threadId });
 }
 
 export async function threadLiveUnsubscribe(workspaceId: string, threadId: string) {
-  return invoke<any>("thread_live_unsubscribe", { workspaceId, threadId });
+  return invoke<unknown>("thread_live_unsubscribe", { workspaceId, threadId });
 }
 
 export async function archiveThread(workspaceId: string, threadId: string) {
-  return invoke<any>("archive_thread", { workspaceId, threadId });
+  return invoke<unknown>("archive_thread", { workspaceId, threadId });
 }
 
 export async function setThreadName(
@@ -1184,7 +1184,7 @@ export async function setThreadName(
   threadId: string,
   name: string,
 ) {
-  return invoke<any>("set_thread_name", { workspaceId, threadId, name });
+  return invoke<unknown>("set_thread_name", { workspaceId, threadId, name });
 }
 
 export async function generateCommitMessage(

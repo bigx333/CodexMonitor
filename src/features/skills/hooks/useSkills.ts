@@ -34,6 +34,14 @@ export function useSkills({ activeWorkspace, onDebug }: UseSkillsOptions) {
     });
     try {
       const response = await getSkillsList(workspaceId);
+      const responseRecord =
+        response && typeof response === "object"
+          ? (response as Record<string, unknown>)
+          : {};
+      const responseResult =
+        responseRecord.result && typeof responseRecord.result === "object"
+          ? (responseRecord.result as Record<string, unknown>)
+          : {};
       onDebug?.({
         id: `${Date.now()}-server-skills-list`,
         timestamp: Date.now(),
@@ -41,14 +49,15 @@ export function useSkills({ activeWorkspace, onDebug }: UseSkillsOptions) {
         label: "skills/list response",
         payload: response,
       });
-      const dataBuckets = response.result?.data ?? response.data ?? [];
+      const dataBuckets = responseResult.data ?? responseRecord.data ?? [];
       const rawSkills =
-        response.result?.skills ??
-        response.skills ??
+        responseResult.skills ??
+        responseRecord.skills ??
         (Array.isArray(dataBuckets)
           ? dataBuckets.flatMap((bucket: any) => bucket?.skills ?? [])
           : []);
-      const data: SkillOption[] = rawSkills.map((item: any) => ({
+      const rawSkillsArray = Array.isArray(rawSkills) ? rawSkills : [];
+      const data: SkillOption[] = rawSkillsArray.map((item: any) => ({
         name: String(item.name ?? ""),
         path: String(item.path ?? ""),
         description: item.description ? String(item.description) : undefined,

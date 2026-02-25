@@ -11,20 +11,24 @@ type UseThreadAccountInfoOptions = {
 };
 
 function normalizeAccountSnapshot(
-  response: Record<string, unknown> | null,
+  response: unknown,
 ): AccountSnapshot {
+  const responseRecord =
+    response && typeof response === "object"
+      ? (response as Record<string, unknown>)
+      : null;
   const accountValue =
-    (response?.result as Record<string, unknown> | undefined)?.account ??
-    response?.account;
+    (responseRecord?.result as Record<string, unknown> | undefined)?.account ??
+    responseRecord?.account;
   const account =
     accountValue && typeof accountValue === "object"
       ? (accountValue as Record<string, unknown>)
       : null;
   const requiresOpenaiAuthRaw =
-    (response?.result as Record<string, unknown> | undefined)?.requiresOpenaiAuth ??
-    (response?.result as Record<string, unknown> | undefined)?.requires_openai_auth ??
-    response?.requiresOpenaiAuth ??
-    response?.requires_openai_auth;
+    (responseRecord?.result as Record<string, unknown> | undefined)?.requiresOpenaiAuth ??
+    (responseRecord?.result as Record<string, unknown> | undefined)?.requires_openai_auth ??
+    responseRecord?.requiresOpenaiAuth ??
+    responseRecord?.requires_openai_auth;
   const requiresOpenaiAuth =
     typeof requiresOpenaiAuthRaw === "boolean" ? requiresOpenaiAuthRaw : null;
 

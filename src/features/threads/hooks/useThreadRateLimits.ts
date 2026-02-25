@@ -39,6 +39,14 @@ export function useThreadRateLimits({
       });
       try {
         const response = await getAccountRateLimits(targetId);
+        const responseRecord =
+          response && typeof response === "object"
+            ? (response as Record<string, unknown>)
+            : {};
+        const responseResult =
+          responseRecord.result && typeof responseRecord.result === "object"
+            ? (responseRecord.result as Record<string, unknown>)
+            : {};
         onDebug?.({
           id: `${Date.now()}-server-account-rate-limits`,
           timestamp: Date.now(),
@@ -47,10 +55,10 @@ export function useThreadRateLimits({
           payload: response,
         });
         const rateLimits =
-          (response?.result?.rateLimits as Record<string, unknown> | undefined) ??
-          (response?.result?.rate_limits as Record<string, unknown> | undefined) ??
-          (response?.rateLimits as Record<string, unknown> | undefined) ??
-          (response?.rate_limits as Record<string, unknown> | undefined);
+          (responseResult.rateLimits as Record<string, unknown> | undefined) ??
+          (responseResult.rate_limits as Record<string, unknown> | undefined) ??
+          (responseRecord.rateLimits as Record<string, unknown> | undefined) ??
+          (responseRecord.rate_limits as Record<string, unknown> | undefined);
         if (rateLimits) {
           const previousRateLimits =
             getCurrentRateLimitsRef.current?.(targetId) ?? null;

@@ -39,6 +39,10 @@ export function useGitBranches({ activeWorkspace, onDebug }: UseGitBranchesOptio
     });
     try {
       const response = await listGitBranches(workspaceId);
+      const responseRecord =
+        response && typeof response === "object"
+          ? (response as Record<string, unknown>)
+          : {};
       onDebug?.({
         id: `${Date.now()}-server-branches-list`,
         timestamp: Date.now(),
@@ -46,7 +50,11 @@ export function useGitBranches({ activeWorkspace, onDebug }: UseGitBranchesOptio
         label: "git/branches/list response",
         payload: response,
       });
-      const data = response?.branches ?? response?.result?.branches ?? response ?? [];
+      const data =
+        responseRecord.branches ??
+        (responseRecord.result as Record<string, unknown> | undefined)?.branches ??
+        response ??
+        [];
       const normalized: BranchInfo[] = Array.isArray(data)
         ? data.map((item: any) => ({
             name: String(item?.name ?? ""),
