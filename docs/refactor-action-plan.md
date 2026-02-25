@@ -46,7 +46,7 @@ Read when: planning medium/large architecture changes, remote-mode reliability w
 
 - [x] `CP0.A` All `R0.*` merged.
 - [ ] `CP0.B` `npm run test`, `npm run typecheck`, `cd src-tauri && cargo test && cargo check` green in CI.
-- [ ] `CP0.C` No known remote thread mis-routing repro left open.
+- [x] `CP0.C` No known remote thread mis-routing repro left open.
 
 ## Phase 1: Contract + Type Hardening (P0/P1)
 
