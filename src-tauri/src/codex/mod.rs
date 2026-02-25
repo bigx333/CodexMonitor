@@ -18,6 +18,10 @@ use crate::shared::codex_core;
 use crate::state::AppState;
 use crate::types::WorkspaceEntry;
 
+const RUN_BANG_UNKNOWN_METHOD: &str = "unknown method: run_bang_command";
+const RUN_BANG_UNSUPPORTED_MESSAGE: &str =
+    "Remote daemon does not support bang commands yet. Update/restart codex-monitor-daemon and retry.";
+
 fn emit_thread_live_event(app: &AppHandle, workspace_id: &str, method: &str, params: Value) {
     let _ = app.emit(
         "app-server-event",
@@ -29,6 +33,16 @@ fn emit_thread_live_event(app: &AppHandle, workspace_id: &str, method: &str, par
             }),
         },
     );
+}
+
+fn map_run_bang_remote_error(err: String) -> String {
+    if err
+        .to_ascii_lowercase()
+        .contains(RUN_BANG_UNKNOWN_METHOD)
+    {
+        return RUN_BANG_UNSUPPORTED_MESSAGE.to_string();
+    }
+    err
 }
 
 pub(crate) async fn spawn_workspace_session(
@@ -389,7 +403,8 @@ pub(crate) async fn run_bang_command(
             "run_bang_command",
             json!({ "workspaceId": workspace_id, "command": command }),
         )
-        .await;
+        .await
+        .map_err(map_run_bang_remote_error);
     }
 
     codex_core::run_bang_command_core(&state.sessions, &state.workspaces, workspace_id, command)
@@ -440,6 +455,24 @@ pub(crate) async fn turn_steer(
         app_mentions,
     )
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{map_run_bang_remote_error, RUN_BANG_UNSUPPORTED_MESSAGE};
+
+    #[test]
+    fn maps_unknown_method_run_bang_error_to_upgrade_message() {
+        let mapped = map_run_bang_remote_error("unknown method: run_bang_command".to_string());
+        assert_eq!(mapped, RUN_BANG_UNSUPPORTED_MESSAGE);
+    }
+
+    #[test]
+    fn preserves_unrelated_remote_error_messages() {
+        let original = "request timed out".to_string();
+        let mapped = map_run_bang_remote_error(original.clone());
+        assert_eq!(mapped, original);
+    }
 }
 
 #[tauri::command]
