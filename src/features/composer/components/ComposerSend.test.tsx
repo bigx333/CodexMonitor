@@ -36,53 +36,62 @@ type HarnessProps = {
     appMentions?: AppMention[],
     submitIntent?: ComposerSendIntent,
   ) => void;
+  onStop?: () => void;
   apps?: AppOption[];
   isProcessing?: boolean;
   followUpMessageBehavior?: FollowUpMessageBehavior;
   steerAvailable?: boolean;
+  canStop?: boolean;
+  phoneLayout?: boolean;
 };
+const EMPTY_APPS: AppOption[] = [];
 
 function ComposerHarness({
   onSend,
-  apps = [],
+  onStop = () => {},
+  apps = EMPTY_APPS,
   isProcessing = false,
   followUpMessageBehavior = "queue",
   steerAvailable = false,
+  canStop = false,
+  phoneLayout = false,
 }: HarnessProps) {
   const [draftText, setDraftText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   return (
-    <Composer
-      onSend={onSend}
-      onStop={() => {}}
-      canStop={false}
-      isProcessing={isProcessing}
-      appsEnabled={true}
-      steerAvailable={steerAvailable}
-      followUpMessageBehavior={followUpMessageBehavior}
-      composerFollowUpHintEnabled={true}
-      collaborationModes={[]}
-      selectedCollaborationModeId={null}
-      onSelectCollaborationMode={() => {}}
-      models={[]}
-      selectedModelId={null}
-      onSelectModel={() => {}}
-      reasoningOptions={[]}
-      selectedEffort={null}
-      onSelectEffort={() => {}}
-      reasoningSupported={false}
-      accessMode="current"
-      onSelectAccessMode={() => {}}
-      skills={[]}
-      apps={apps}
-      prompts={[]}
-      files={[]}
-      draftText={draftText}
-      onDraftChange={setDraftText}
-      textareaRef={textareaRef}
-      dictationEnabled={false}
-    />
+    <div className={phoneLayout ? "app layout-phone" : undefined}>
+      <Composer
+        onSend={onSend}
+        onStop={onStop}
+        canStop={canStop}
+        isProcessing={isProcessing}
+        appsEnabled={true}
+        steerAvailable={steerAvailable}
+        followUpMessageBehavior={followUpMessageBehavior}
+        composerFollowUpHintEnabled={true}
+        collaborationModes={[]}
+        selectedCollaborationModeId={null}
+        onSelectCollaborationMode={() => {}}
+        models={[]}
+        selectedModelId={null}
+        onSelectModel={() => {}}
+        reasoningOptions={[]}
+        selectedEffort={null}
+        onSelectEffort={() => {}}
+        reasoningSupported={false}
+        accessMode="current"
+        onSelectAccessMode={() => {}}
+        skills={[]}
+        apps={apps}
+        prompts={[]}
+        files={[]}
+        draftText={draftText}
+        onDraftChange={setDraftText}
+        textareaRef={textareaRef}
+        dictationEnabled={false}
+      />
+    </div>
   );
 }
 
@@ -277,5 +286,51 @@ describe("Composer send triggers", () => {
     fireEvent.keyDown(textarea, { key: "Tab" });
 
     expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("keeps follow-up send available on phone while stop is active", () => {
+    vi.mocked(isMobilePlatform).mockReturnValue(true);
+    const onSend = vi.fn();
+    const onStop = vi.fn();
+    render(
+      <ComposerHarness
+        onSend={onSend}
+        onStop={onStop}
+        canStop={true}
+        isProcessing={true}
+        followUpMessageBehavior="queue"
+        steerAvailable={true}
+        phoneLayout={true}
+      />,
+    );
+
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "queue from phone" } });
+    fireEvent.click(screen.getByLabelText("Queue"));
+
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(onSend).toHaveBeenCalledWith("queue from phone", [], undefined, "queue");
+    expect(onStop).not.toHaveBeenCalled();
+  });
+
+  it("moves stop action into phone menu while processing", () => {
+    vi.mocked(isMobilePlatform).mockReturnValue(true);
+    const onStop = vi.fn();
+    render(
+      <ComposerHarness
+        onSend={() => {}}
+        onStop={onStop}
+        canStop={true}
+        isProcessing={true}
+        followUpMessageBehavior="queue"
+        steerAvailable={true}
+        phoneLayout={true}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("More actions"));
+    fireEvent.click(screen.getByText("Stop active run"));
+
+    expect(onStop).toHaveBeenCalledTimes(1);
   });
 });

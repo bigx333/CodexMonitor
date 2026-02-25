@@ -494,6 +494,19 @@
   height: 12px;
 }
 
+.composer-action.is-followup {
+  border-color: rgba(120, 190, 255, 0.65);
+  background: rgba(120, 190, 255, 0.14);
+}
+
+.composer-action.is-followup:hover {
+  background: rgba(120, 190, 255, 0.22);
+}
+
+.composer-action-followup-label {
+  display: none;
+}
+
 .composer-action-stop-square {
   width: 6px;
   height: 6px;
@@ -951,6 +964,22 @@
   .app.layout-phone .composer-action {
     width: 32px;
     height: 32px;
+  }
+
+  .app.layout-phone .composer-action.is-followup {
+    width: auto;
+    min-width: 78px;
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  .app.layout-phone .composer-action.is-followup .composer-action-followup-label {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1;
   }
 
   .app.layout-phone .composer-bar {

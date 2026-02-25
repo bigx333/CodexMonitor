@@ -93,6 +93,7 @@ type ComposerInputProps = {
 };
 
 const isFileSuggestion = (item: AutocompleteItem) => item.group === "Files";
+const EMPTY_ATTACHMENTS: string[] = [];
 
 const suggestionIcon = (item: AutocompleteItem) => {
   if (isFileSuggestion(item)) {
@@ -155,7 +156,7 @@ export function ComposerInput({
   onDismissDictationError,
   dictationHint = null,
   onDismissDictationHint,
-  attachments = [],
+  attachments = EMPTY_ATTACHMENTS,
   onAddAttachment,
   onAttachImages,
   onRemoveAttachment,
@@ -327,22 +328,27 @@ export function ComposerInput({
   }, [disabled, mobileActionsOpen]);
 
   const handleActionClick = useCallback(() => {
-    if (canStop) {
+    const shouldUseStopAction = canStop && !(mobilePlatform && isPhoneLayout);
+    if (shouldUseStopAction) {
       onStop();
     } else {
       onSend();
     }
-  }, [canStop, onSend, onStop]);
+  }, [canStop, isPhoneLayout, mobilePlatform, onSend, onStop]);
   const handleActionPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>) => {
-      if (!mobilePlatform || canStop) {
+      const shouldUseStopAction = canStop && !(mobilePlatform && isPhoneLayout);
+      if (!mobilePlatform || shouldUseStopAction) {
         return;
       }
       // Keep textarea focused on mobile so tapping send doesn't collapse the keyboard first.
       event.preventDefault();
     },
-    [canStop, mobilePlatform],
+    [canStop, isPhoneLayout, mobilePlatform],
   );
+  const showStopInMobileMenu = mobilePlatform && isPhoneLayout && canStop;
+  const primaryActionIsStop = canStop && !showStopInMobileMenu;
+  const followUpSendActive = showStopInMobileMenu && isProcessing;
   const isDictating = dictationState === "listening";
   const isDictationBusy = dictationState !== "idle";
   const allowOpenDictationSettings = Boolean(
@@ -424,6 +430,13 @@ export function ComposerInput({
     setMobileActionsOpen(false);
     handleMicClick();
   }, [handleMicClick]);
+  const handleMobileStopClick = useCallback(() => {
+    if (!canStop) {
+      return;
+    }
+    setMobileActionsOpen(false);
+    onStop();
+  }, [canStop, onStop]);
 
   return (
     <div className={`composer-input${isPhoneLayout && isPhoneTallInput ? " is-phone-tall" : ""}`}>
@@ -469,6 +482,14 @@ export function ComposerInput({
             </button>
             {mobileActionsOpen && (
               <PopoverSurface className="composer-mobile-actions-popover" role="menu">
+                {showStopInMobileMenu && (
+                  <PopoverMenuItem
+                    onClick={handleMobileStopClick}
+                    icon={<Square size={14} />}
+                  >
+                    Stop active run
+                  </PopoverMenuItem>
+                )}
                 <PopoverMenuItem
                   onClick={handleMobileAttachClick}
                   disabled={disabled || !onAddAttachment}
@@ -714,16 +735,20 @@ export function ComposerInput({
         {isDictating ? <Square aria-hidden /> : <Mic aria-hidden />}
       </button>
       <button
-        className={`composer-action${canStop ? " is-stop" : " is-send"}${
-          canStop && isProcessing ? " is-loading" : ""
-        }`}
+        className={`composer-action${primaryActionIsStop ? " is-stop" : " is-send"}${
+          primaryActionIsStop && isProcessing ? " is-loading" : ""
+        }${followUpSendActive ? " is-followup" : ""}`}
         onPointerDown={handleActionPointerDown}
         onClick={handleActionClick}
-        disabled={(disabled && !canStop) || isDictationBusy || (!canStop && !canSend)}
-        aria-label={canStop ? "Stop" : sendLabel}
-        title={canStop ? "Stop" : sendLabel}
+        disabled={
+          (disabled && !primaryActionIsStop) ||
+          isDictationBusy ||
+          (!primaryActionIsStop && !canSend)
+        }
+        aria-label={primaryActionIsStop ? "Stop" : sendLabel}
+        title={primaryActionIsStop ? "Stop" : sendLabel}
       >
-        {canStop ? (
+        {primaryActionIsStop ? (
           <>
             <span className="composer-action-stop-square" aria-hidden />
             {isProcessing && (
@@ -731,15 +756,20 @@ export function ComposerInput({
             )}
           </>
         ) : (
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path
-              d="M12 5l6 6m-6-6L6 11m6-6v14"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <>
+            {followUpSendActive && (
+              <span className="composer-action-followup-label">{sendLabel}</span>
+            )}
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M12 5l6 6m-6-6L6 11m6-6v14"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </>
         )}
       </button>
     </div>
