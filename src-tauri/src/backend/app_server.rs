@@ -423,6 +423,33 @@ fn should_broadcast_global_workspace_notification(
         && request_workspace.is_none()
 }
 
+fn resolve_routed_workspace_id(
+    thread_id: Option<&str>,
+    mapped_thread_workspace: Option<&str>,
+    request_workspace: Option<&str>,
+    fallback_workspace_id: &str,
+    registered_workspace_count: usize,
+) -> Option<String> {
+    if thread_id.is_some() {
+        if let Some(workspace_id) = mapped_thread_workspace {
+            return Some(workspace_id.to_string());
+        }
+        if let Some(workspace_id) = request_workspace {
+            return Some(workspace_id.to_string());
+        }
+        if registered_workspace_count <= 1 {
+            return Some(fallback_workspace_id.to_string());
+        }
+        return None;
+    }
+
+    Some(
+        request_workspace
+            .unwrap_or(fallback_workspace_id)
+            .to_string(),
+    )
+}
+
 #[derive(Clone)]
 pub(crate) struct RequestContext {
     workspace_id: String,
@@ -962,19 +989,25 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
                 }
             }
 
-            let routed_workspace_id = if let Some(ref tid) = thread_id {
+            let mapped_thread_workspace = if let Some(ref tid) = thread_id {
                 session_clone
                     .thread_workspace
                     .lock()
                     .await
                     .get(tid)
                     .cloned()
-                    .or_else(|| request_workspace.clone())
-                    .unwrap_or_else(|| fallback_workspace_id.clone())
             } else {
-                request_workspace
-                    .clone()
-                    .unwrap_or_else(|| fallback_workspace_id.clone())
+                None
+            };
+            let registered_workspace_count = session_clone.workspace_ids.lock().await.len();
+            let Some(routed_workspace_id) = resolve_routed_workspace_id(
+                thread_id.as_deref(),
+                mapped_thread_workspace.as_deref(),
+                request_workspace.as_deref(),
+                &fallback_workspace_id,
+                registered_workspace_count,
+            ) else {
+                continue;
             };
 
             if method_name.as_deref() == Some("thread/archived") {
@@ -1212,8 +1245,9 @@ mod tests {
         build_initialize_params, can_retry_turn_start_error, extract_response_error_message,
         extract_thread_cwd, extract_thread_entries_from_thread_list_result, extract_thread_id,
         extract_thread_spawn_parent_thread_id, extract_turn_error_details, extract_turn_id,
-        normalize_root_path, resolve_spawned_thread_workspace, resolve_started_thread_workspace,
-        resolve_workspace_for_cwd, set_turn_error_will_retry, TurnErrorDetails,
+        normalize_root_path, resolve_routed_workspace_id, resolve_spawned_thread_workspace,
+        resolve_started_thread_workspace, resolve_workspace_for_cwd, set_turn_error_will_retry,
+        TurnErrorDetails,
     };
     use std::collections::HashMap;
     use serde_json::json;
@@ -1386,6 +1420,54 @@ mod tests {
         assert_eq!(
             resolve_started_thread_workspace("thread-child", &value, &thread_workspace, &workspace_roots),
             None
+        );
+    }
+
+    #[test]
+    fn resolve_routed_workspace_id_prefers_mapped_thread_workspace() {
+        assert_eq!(
+            resolve_routed_workspace_id(
+                Some("thread-1"),
+                Some("ws-b"),
+                Some("ws-a"),
+                "ws-owner",
+                2,
+            ),
+            Some("ws-b".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_routed_workspace_id_uses_request_workspace_when_thread_unmapped() {
+        assert_eq!(
+            resolve_routed_workspace_id(
+                Some("thread-1"),
+                None,
+                Some("ws-a"),
+                "ws-owner",
+                2,
+            ),
+            Some("ws-a".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_routed_workspace_id_drops_ambiguous_thread_events_for_multi_workspace_sessions() {
+        assert_eq!(
+            resolve_routed_workspace_id(Some("thread-1"), None, None, "ws-owner", 2),
+            None
+        );
+    }
+
+    #[test]
+    fn resolve_routed_workspace_id_keeps_single_workspace_fallback_behavior() {
+        assert_eq!(
+            resolve_routed_workspace_id(Some("thread-1"), None, None, "ws-owner", 1),
+            Some("ws-owner".to_string())
+        );
+        assert_eq!(
+            resolve_routed_workspace_id(None, None, None, "ws-owner", 3),
+            Some("ws-owner".to_string())
         );
     }
 
