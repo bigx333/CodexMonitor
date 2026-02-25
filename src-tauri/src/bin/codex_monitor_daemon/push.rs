@@ -3,17 +3,24 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 
+#[path = "push_delivery.rs"]
+mod push_delivery;
+#[path = "push_fcm.rs"]
+mod push_fcm;
 #[path = "push_support.rs"]
 mod push_support;
 
+use push_delivery::PreparedDelivery;
+use push_fcm::DirectFcmSender;
 use push_support::{
     clamp_preview, config_snapshot_value, default_client_kind, default_true, deliver_to_relay,
     has_non_afk_desktop_for_workspace, make_dedupe_key, make_thread_key, normalize_client_kind,
     normalize_optional_non_empty, normalize_platform, now_ms, parse_thread_id, parse_turn_id,
-    prune_stale_entries, read_state_file, redact_token_preview, RelayDispatch,
+    prune_stale_entries, read_state_file, redact_token_preview,
 };
 
 const PUSH_STATE_FILE: &str = "push_notifications.json";
@@ -117,6 +124,7 @@ pub(super) struct PushBrokerState {
 pub(crate) struct PushBroker {
     state_path: PathBuf,
     http_client: Client,
+    direct_fcm: Arc<DirectFcmSender>,
     state: Mutex<PushBrokerState>,
 }
 
@@ -129,13 +137,15 @@ impl PushBroker {
             .into_iter()
             .map(|device| (device.device_id.clone(), device))
             .collect::<HashMap<_, _>>();
+        let http_client = Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(10))
+            .build()
+            .unwrap_or_else(|_| Client::new());
         Self {
             state_path,
-            http_client: Client::builder()
-                .connect_timeout(Duration::from_secs(5))
-                .timeout(Duration::from_secs(10))
-                .build()
-                .unwrap_or_else(|_| Client::new()),
+            direct_fcm: Arc::new(DirectFcmSender::new(data_dir.clone(), http_client.clone())),
+            http_client,
             state: Mutex::new(PushBrokerState {
                 relay_url: normalize_optional_non_empty(persisted.relay_url),
                 relay_auth_token: normalize_optional_non_empty(persisted.relay_auth_token),
@@ -319,10 +329,19 @@ impl PushBroker {
         };
 
         if let Some(delivery) = self.prepare_delivery(candidate).await {
-            let client = self.http_client.clone();
-            tokio::spawn(async move {
-                deliver_to_relay(client, delivery).await;
-            });
+            if delivery.relay_url.is_some() {
+                let client = self.http_client.clone();
+                tokio::spawn(async move {
+                    if let Some(dispatch) = delivery.into_relay_dispatch() {
+                        deliver_to_relay(client, dispatch).await;
+                    }
+                });
+            } else {
+                let direct_fcm = Arc::clone(&self.direct_fcm);
+                tokio::spawn(async move {
+                    direct_fcm.deliver(delivery).await;
+                });
+            }
         }
     }
 
@@ -411,14 +430,13 @@ impl PushBroker {
         })
     }
 
-    async fn prepare_delivery(&self, event: PushEvent) -> Option<RelayDispatch> {
+    async fn prepare_delivery(&self, event: PushEvent) -> Option<PreparedDelivery> {
         let now_ms = now_ms();
         let mut state = self.state.lock().await;
         prune_stale_entries(&mut state, now_ms);
         if has_non_afk_desktop_for_workspace(&state, &event.workspace_id) {
             return None;
         }
-        let relay_url = state.relay_url.clone()?;
         let devices = state
             .devices
             .values()
@@ -446,29 +464,14 @@ impl PushBroker {
                 .map(|name| format!("Agent Complete — {name}"))
                 .unwrap_or_else(|| "Agent Complete".to_string()),
         };
-        let body = event.preview.clone();
-        let payload = json!({
-            "kind": event.kind,
-            "workspaceId": event.workspace_id,
-            "threadId": event.thread_id,
-            "turnId": event.turn_id,
-            "title": title,
-            "body": body,
-            "preview": event.preview,
-            "timestampMs": now_ms,
-            "devices": devices.into_iter().map(|device| {
-                json!({
-                    "deviceId": device.device_id,
-                    "platform": device.platform,
-                    "token": device.token,
-                    "label": device.label,
-                })
-            }).collect::<Vec<_>>()
-        });
-        Some(RelayDispatch {
-            relay_url,
+        Some(PreparedDelivery {
+            relay_url: state.relay_url.clone(),
             relay_auth_token: state.relay_auth_token.clone(),
-            payload,
+            body: event.preview.clone(),
+            event,
+            title,
+            devices,
+            timestamp_ms: now_ms,
         })
     }
 

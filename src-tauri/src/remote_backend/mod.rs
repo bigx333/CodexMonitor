@@ -177,6 +177,7 @@ fn can_retry_after_disconnect(method: &str) -> bool {
             | "model_list"
             | "presence_heartbeat"
             | "push_notification_config_get"
+            | "push_notification_config_patch"
             | "push_notification_state"
             | "push_register_device"
             | "push_unregister_device"

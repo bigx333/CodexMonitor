@@ -93,6 +93,13 @@ If your NDK is installed outside default SDK paths, set one of:
 - Add `src-tauri/gen/android/app/google-services.json` for your Firebase Android app.
 - On startup in remote mode, Android attempts to fetch an FCM token and register device with daemon push broker.
 - Without `google-services.json`, remote push registration is skipped.
+- Delivery path is automatic:
+  - If `relayUrl` is configured, daemon posts push payloads to that relay.
+  - If `relayUrl` is unset, daemon attempts direct FCM delivery using Google auth credentials.
+- Direct FCM auth sources (first available):
+  - `GOOGLE_APPLICATION_CREDENTIALS` service-account JSON.
+  - Daemon-local `firebase-service-account.json` in the daemon data dir (default: `~/.local/share/codex-monitor-daemon/firebase-service-account.json`).
+- If neither relay nor Google auth credentials are available, daemon logs `daemon direct FCM unavailable` and skips delivery.
 
 ## iOS Support (WIP)
 
