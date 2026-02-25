@@ -89,7 +89,8 @@ Read when: planning medium/large architecture changes, remote-mode reliability w
   - Progress:
     - [x] Extracted prompt CRUD/reveal callbacks into `usePromptOrchestration`.
     - [x] Extracted terminal/worktree launch orchestration into `useTerminalWorktreeOrchestration`.
-    - [ ] Extract remaining large orchestration clusters (git panel flows).
+    - [x] Extracted git branch/actions/init-root orchestration into `useGitWorkspaceOrchestration`.
+    - [ ] Continue decomposing remaining `MainApp` wiring clusters.
   - Effort: `M`
   - Risk: `Med`
   - Depends on: `CP1`

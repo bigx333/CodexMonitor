@@ -54,10 +54,8 @@ import { useGitRemote } from "@/features/git/hooks/useGitRemote";
 import { useGitRepoScan } from "@/features/git/hooks/useGitRepoScan";
 import { usePullRequestComposer } from "@/features/git/hooks/usePullRequestComposer";
 import { usePullRequestReviewActions } from "@/features/git/hooks/usePullRequestReviewActions";
-import { useGitActions } from "@/features/git/hooks/useGitActions";
 import { useAutoExitEmptyDiff } from "@/features/git/hooks/useAutoExitEmptyDiff";
 import { isMissingRepo } from "@/features/git/utils/repoErrors";
-import { useInitGitRepoPrompt } from "@/features/git/hooks/useInitGitRepoPrompt";
 import { useModels } from "@/features/models/hooks/useModels";
 import { useCollaborationModes } from "@/features/collaboration/hooks/useCollaborationModes";
 import { useCollaborationModeSelection } from "@/features/collaboration/hooks/useCollaborationModeSelection";
@@ -65,9 +63,6 @@ import { useSkills } from "@/features/skills/hooks/useSkills";
 import { useApps } from "@/features/apps/hooks/useApps";
 import { useCustomPrompts } from "@/features/prompts/hooks/useCustomPrompts";
 import { useWorkspaceFileListing } from "@app/hooks/useWorkspaceFileListing";
-import { useGitBranches } from "@/features/git/hooks/useGitBranches";
-import { useBranchSwitcher } from "@/features/git/hooks/useBranchSwitcher";
-import { useBranchSwitcherShortcut } from "@/features/git/hooks/useBranchSwitcherShortcut";
 import {
   REMOTE_WORKSPACE_REFRESH_INTERVAL_MS,
   useWorkspaceRefreshOnFocus,
@@ -129,7 +124,6 @@ import { useSystemNotificationThreadLinks } from "@app/hooks/useSystemNotificati
 import { useThreadListSortKey } from "@app/hooks/useThreadListSortKey";
 import { useThreadListActions } from "@app/hooks/useThreadListActions";
 import { useSidebarLayoutActions } from "@app/hooks/useSidebarLayoutActions";
-import { useGitRootSelection } from "@app/hooks/useGitRootSelection";
 import { useTabActivationGuard } from "@app/hooks/useTabActivationGuard";
 import {
   REMOTE_THREAD_POLL_INTERVAL_MS,
@@ -150,6 +144,7 @@ import {
 import { useAppShellOrchestration } from "@app/orchestration/useLayoutOrchestration";
 import { usePromptOrchestration } from "@app/orchestration/usePromptOrchestration";
 import { useTerminalWorktreeOrchestration } from "@app/orchestration/useTerminalWorktreeOrchestration";
+import { useGitWorkspaceOrchestration } from "@app/orchestration/useGitWorkspaceOrchestration";
 import { buildCodexArgsOptions } from "@threads/utils/codexArgsProfiles";
 import { normalizeCodexArgsInput } from "@/utils/codexArgsInput";
 import {
@@ -831,67 +826,26 @@ function MainApp() {
   const alertError = useCallback((error: unknown) => {
     alert(error instanceof Error ? error.message : String(error));
   }, []);
-  const { branches, checkoutBranch, checkoutPullRequest, createBranch } = useGitBranches({
-    activeWorkspace,
-    onDebug: addDebugEntry
-  });
-  const handleCheckoutBranch = async (name: string) => {
-    await checkoutBranch(name);
-    refreshGitStatus();
-  };
-  const handleCheckoutPullRequest = async (prNumber: number) => {
-    try {
-      await checkoutPullRequest(prNumber);
-      await Promise.resolve(refreshGitStatus());
-      await Promise.resolve(refreshGitLog());
-    } catch (error) {
-      alertError(error);
-    }
-  };
-  const handleCreateBranch = async (name: string) => {
-    await createBranch(name);
-    refreshGitStatus();
-  };
-  const currentBranch = gitStatus.branchName ?? null;
   const {
+    branches,
+    handleCheckoutBranch,
+    handleCheckoutPullRequest,
+    handleCreateBranch,
+    currentBranch,
     branchSwitcher,
-    openBranchSwitcher,
     closeBranchSwitcher,
     handleBranchSelect,
-  } = useBranchSwitcher({
-    activeWorkspace,
-    checkoutBranch: handleCheckoutBranch,
-    setActiveWorkspaceId,
-  });
-  const isBranchSwitcherEnabled =
-    Boolean(activeWorkspace?.connected) && activeWorkspace?.kind !== "worktree";
-  useBranchSwitcherShortcut({
-    shortcut: appSettings.branchSwitcherShortcut,
-    isEnabled: isBranchSwitcherEnabled,
-    onTrigger: openBranchSwitcher,
-  });
-  const {
-    applyWorktreeChanges: handleApplyWorktreeChanges,
-    createGitHubRepo: handleCreateGitHubRepo,
+    handleApplyWorktreeChanges,
     createGitHubRepoLoading,
-    initGitRepo: handleInitGitRepo,
     initGitRepoLoading,
-    revertAllGitChanges: handleRevertAllGitChanges,
-    revertGitFile: handleRevertGitFile,
-    stageGitAll: handleStageGitAll,
-    stageGitFile: handleStageGitFile,
-    unstageGitFile: handleUnstageGitFile,
+    handleRevertAllGitChanges,
+    handleRevertGitFile,
+    handleStageGitAll,
+    handleStageGitFile,
+    handleUnstageGitFile,
     worktreeApplyError,
     worktreeApplyLoading,
     worktreeApplySuccess,
-  } = useGitActions({
-    activeWorkspace,
-    onRefreshGitStatus: refreshGitStatus,
-    onRefreshGitDiffs: refreshGitDiffs,
-    onClearGitRootCandidates: clearGitRootCandidates,
-    onError: alertError,
-  });
-  const {
     initGitRepoPrompt,
     openInitGitRepoPrompt,
     handleInitGitRepoPromptBranchChange,
@@ -900,27 +854,26 @@ function MainApp() {
     handleInitGitRepoPromptPrivateChange,
     handleInitGitRepoPromptCancel,
     handleInitGitRepoPromptConfirm,
-  } = useInitGitRepoPrompt({
+    activeGitRoot,
+    handleSetGitRoot,
+    handlePickGitRoot,
+    fileStatus,
+  } = useGitWorkspaceOrchestration({
     activeWorkspace,
-    initGitRepo: handleInitGitRepo,
-    createGitHubRepo: handleCreateGitHubRepo,
-    refreshGitRemote,
-    isBusy: initGitRepoLoading || createGitHubRepoLoading,
-  });
-  const { activeGitRoot, handleSetGitRoot, handlePickGitRoot } = useGitRootSelection({
-    activeWorkspace,
+    branchSwitcherShortcut: appSettings.branchSwitcherShortcut,
+    setActiveWorkspaceId,
     updateWorkspaceSettings,
     clearGitRootCandidates,
     refreshGitStatus,
+    refreshGitDiffs,
+    refreshGitLog,
+    refreshGitRemote,
+    gitStatusBranchName: gitStatus.branchName ?? null,
+    gitStatusError: gitStatus.error,
+    gitChangedFilesCount: gitStatus.files.length,
+    onDebug: addDebugEntry,
+    onError: alertError,
   });
-  const fileStatus =
-    gitStatus.error
-      ? "Git status unavailable"
-      : gitStatus.files.length > 0
-        ? `${gitStatus.files.length} file${
-            gitStatus.files.length === 1 ? "" : "s"
-          } changed`
-        : "Working tree clean";
 
   const { isExpanded: composerEditorExpanded, toggleExpanded: toggleComposerEditorExpanded } =
     useComposerEditorState();
