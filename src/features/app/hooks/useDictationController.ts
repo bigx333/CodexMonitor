@@ -4,6 +4,7 @@ import { useDictationModel } from "../../dictation/hooks/useDictationModel";
 import { useHoldToDictate } from "../../dictation/hooks/useHoldToDictate";
 import type { AppSettings } from "../../../types";
 import { requestDictationPermission } from "../../../services/tauri";
+import { isMobilePlatform } from "../../../utils/platformPaths";
 
 type DictationController = {
   dictationModel: ReturnType<typeof useDictationModel>;
@@ -42,7 +43,8 @@ export function useDictationController(appSettings: AppSettings): DictationContr
     clearTranscript: clearDictationTranscript,
     clearError: clearDictationError,
     clearHint: clearDictationHint,
-  } = useDictation();
+  } = useDictation(appSettings.dictationProvider);
+  const mobileChatgpt = isMobilePlatform() && appSettings.dictationProvider === "chatgpt";
   const dictationReady =
     appSettings.dictationProvider === "chatgpt"
       ? Boolean(dictationWorkspaceId) && Boolean(dictationModel.authStatus?.authenticated)
@@ -127,6 +129,10 @@ export function useDictationController(appSettings: AppSettings): DictationContr
   });
 
   useEffect(() => {
+    if (mobileChatgpt) {
+      permissionRequestedRef.current = true;
+      return;
+    }
     if (!appSettings.dictationEnabled) {
       permissionRequestedRef.current = false;
       return;
@@ -150,7 +156,7 @@ export function useDictationController(appSettings: AppSettings): DictationContr
       .finally(() => {
         permissionRequestPendingRef.current = false;
       });
-  }, [appSettings.dictationEnabled, dictationReady]);
+  }, [appSettings.dictationEnabled, dictationReady, mobileChatgpt]);
 
   return {
     dictationModel,

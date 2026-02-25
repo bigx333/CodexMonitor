@@ -70,7 +70,7 @@ Success criteria:
 ## Known Mobile Limits
 
 - Terminal tooling is unavailable on mobile builds.
-- Dictation is unavailable on mobile builds.
+- Local Whisper dictation is unavailable on mobile builds (ChatGPT dictation is supported).
 
 ## Troubleshooting
 

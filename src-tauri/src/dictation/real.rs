@@ -359,8 +359,17 @@ async fn transcribe_chatgpt_dictation(
     state: &State<'_, AppState>,
     workspace_id: String,
     audio: Vec<u8>,
+    mime_type: String,
     language: Option<String>,
 ) -> Result<String, String> {
+    let mime_type = {
+        let normalized = mime_type.trim();
+        if normalized.is_empty() {
+            "audio/webm".to_string()
+        } else {
+            normalized.to_string()
+        }
+    };
     if remote_backend::is_remote_mode(&*state).await {
         let response = remote_backend::call_remote(
             &*state,
@@ -369,7 +378,7 @@ async fn transcribe_chatgpt_dictation(
             json!({
                 "workspaceId": workspace_id,
                 "audio": STANDARD.encode(audio),
-                "mimeType": "audio/wav",
+                "mimeType": mime_type,
                 "language": language,
             }),
         )
@@ -386,7 +395,7 @@ async fn transcribe_chatgpt_dictation(
         &state.sessions,
         workspace_id,
         audio,
-        "audio/wav".to_string(),
+        mime_type,
         language,
     )
     .await
@@ -862,6 +871,32 @@ pub(crate) async fn dictation_auth_status(
 }
 
 #[tauri::command]
+pub(crate) async fn dictation_transcribe_audio(
+    workspace_id: Option<String>,
+    audio: String,
+    mime_type: Option<String>,
+    language: Option<String>,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let provider = resolve_dictation_provider(&state).await;
+    if provider != DictationProvider::Chatgpt {
+        return Err("ChatGPT dictation provider is required.".to_string());
+    }
+
+    let workspace_id = workspace_id
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "An active workspace is required for ChatGPT dictation.".to_string())?;
+    let audio = STANDARD
+        .decode(audio.trim())
+        .map_err(|error| format!("Invalid dictation audio payload: {error}"))?;
+    let mime_type = mime_type.unwrap_or_else(|| "audio/webm".to_string());
+
+    transcribe_chatgpt_dictation(&app, &state, workspace_id, audio, mime_type, language).await
+}
+
+#[tauri::command]
 pub(crate) async fn dictation_start(
     preferred_language: Option<String>,
     workspace_id: Option<String>,
@@ -1117,6 +1152,7 @@ pub(crate) async fn dictation_stop(
                 &state_handle,
                 workspace_id,
                 audio_wav,
+                "audio/wav".to_string(),
                 preferred_language.clone(),
             )
             .await;

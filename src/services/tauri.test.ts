@@ -39,6 +39,7 @@ import {
   tailscaleDaemonStatus,
   tailscaleDaemonStop,
   tailscaleStatus,
+  transcribeDictationAudio,
   pickWorkspacePaths,
   writeGlobalAgentsMd,
   writeGlobalCodexConfigToml,
@@ -187,6 +188,20 @@ describe("tauri invoke wrappers", () => {
 
     expect(invokeMock).toHaveBeenCalledWith("get_github_issues", {
       workspaceId: "ws-2",
+    });
+  });
+
+  it("maps args for dictation_transcribe_audio", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce("hello world");
+
+    await transcribeDictationAudio("Zm9v", "audio/webm", "ws-mobile", "en");
+
+    expect(invokeMock).toHaveBeenCalledWith("dictation_transcribe_audio", {
+      workspaceId: "ws-mobile",
+      audio: "Zm9v",
+      mimeType: "audio/webm",
+      language: "en",
     });
   });
 

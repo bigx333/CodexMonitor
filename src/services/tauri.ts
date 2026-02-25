@@ -1080,6 +1080,20 @@ export async function getDictationAuthStatus(
   return invoke<DictationAuthStatus>("dictation_auth_status", { workspaceId });
 }
 
+export async function transcribeDictationAudio(
+  audio: string,
+  mimeType: string,
+  workspaceId?: string | null,
+  language?: string | null,
+): Promise<string> {
+  return invoke<string>("dictation_transcribe_audio", {
+    workspaceId,
+    audio,
+    mimeType,
+    language: language ?? null,
+  });
+}
+
 export async function startDictation(
   preferredLanguage: string | null,
   workspaceId?: string | null,
