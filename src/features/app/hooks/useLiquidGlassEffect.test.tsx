@@ -121,6 +121,17 @@ describe("useLiquidGlassEffect", () => {
     });
   });
 
+  it("skips all effects on Android mobile runtime", async () => {
+    vi.mocked(isGlassSupported).mockResolvedValue(true);
+    setUserAgent("Mozilla/5.0 (Linux; Android 15; Pixel 9)");
+
+    renderHook(() => useLiquidGlassEffect({ reduceTransparency: false }));
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(mockSetEffects).not.toHaveBeenCalled();
+    expect(setLiquidGlassEffect).not.toHaveBeenCalled();
+  });
+
   it("does not apply any effect on unknown OS when liquid glass is unsupported", async () => {
     vi.mocked(isGlassSupported).mockResolvedValue(false);
     setUserAgent("Mozilla/5.0 (UnknownOS)");

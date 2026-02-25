@@ -6,6 +6,7 @@ import {
 } from "tauri-plugin-liquid-glass-api";
 import { Effect, EffectState, getCurrentWindow } from "@tauri-apps/api/window";
 import type { DebugEntry } from "../../../types";
+import { isMobilePlatform } from "../../../utils/platformPaths";
 
 type Params = {
   reduceTransparency: boolean;
@@ -20,6 +21,9 @@ export function useLiquidGlassEffect({ reduceTransparency, onDebug }: Params) {
 
     const apply = async () => {
       try {
+        if (isMobilePlatform()) {
+          return;
+        }
         const window = getCurrentWindow();
         const userAgent = navigator.userAgent ?? "";
         const isMac = userAgent.includes("Macintosh");
