@@ -1342,6 +1342,54 @@ mod tests {
     }
 
     #[test]
+    fn resolve_started_thread_workspace_prefers_parent_mapping_over_cwd() {
+        let value = json!({
+            "method": "thread/started",
+            "params": {
+                "thread": {
+                    "id": "thread-child",
+                    "cwd": "/tmp/project-b/subdir",
+                    "source": {
+                        "thread_spawn": {
+                            "parent_thread_id": "thread-parent"
+                        }
+                    }
+                }
+            }
+        });
+        let mut thread_workspace = HashMap::new();
+        thread_workspace.insert("thread-parent".to_string(), "ws-a".to_string());
+        let mut workspace_roots = HashMap::new();
+        workspace_roots.insert("ws-a".to_string(), normalize_root_path("/tmp/project-a"));
+        workspace_roots.insert("ws-b".to_string(), normalize_root_path("/tmp/project-b"));
+        assert_eq!(
+            resolve_started_thread_workspace("thread-child", &value, &thread_workspace, &workspace_roots),
+            Some("ws-a".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_started_thread_workspace_returns_none_when_unmapped() {
+        let value = json!({
+            "method": "thread/started",
+            "params": {
+                "thread": {
+                    "id": "thread-child",
+                    "cwd": "/tmp/unknown-project"
+                }
+            }
+        });
+        let thread_workspace = HashMap::new();
+        let mut workspace_roots = HashMap::new();
+        workspace_roots.insert("ws-a".to_string(), normalize_root_path("/tmp/project-a"));
+        workspace_roots.insert("ws-b".to_string(), normalize_root_path("/tmp/project-b"));
+        assert_eq!(
+            resolve_started_thread_workspace("thread-child", &value, &thread_workspace, &workspace_roots),
+            None
+        );
+    }
+
+    #[test]
     fn extract_turn_id_reads_turn_object_id() {
         let value = json!({ "params": { "turn": { "id": "turn-123" } } });
         assert_eq!(extract_turn_id(&value), Some("turn-123".to_string()));
