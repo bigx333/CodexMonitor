@@ -109,10 +109,6 @@ import { useThreadRows } from "@app/hooks/useThreadRows";
 import { useInterruptShortcut } from "@app/hooks/useInterruptShortcut";
 import { useArchiveShortcut } from "@app/hooks/useArchiveShortcut";
 import { useCopyThread } from "@threads/hooks/useCopyThread";
-import { useTerminalController } from "@/features/terminal/hooks/useTerminalController";
-import { useWorkspaceLaunchScript } from "@app/hooks/useWorkspaceLaunchScript";
-import { useWorkspaceLaunchScripts } from "@app/hooks/useWorkspaceLaunchScripts";
-import { useWorktreeSetupScript } from "@app/hooks/useWorktreeSetupScript";
 import { useGitCommitController } from "@app/hooks/useGitCommitController";
 import { effectiveCommitMessageModelId } from "@/features/git/utils/commitMessageModelSelection";
 import { WorkspaceHome } from "@/features/workspaces/components/WorkspaceHome";
@@ -153,6 +149,7 @@ import {
 } from "@app/orchestration/useWorkspaceOrchestration";
 import { useAppShellOrchestration } from "@app/orchestration/useLayoutOrchestration";
 import { usePromptOrchestration } from "@app/orchestration/usePromptOrchestration";
+import { useTerminalWorktreeOrchestration } from "@app/orchestration/useTerminalWorktreeOrchestration";
 import { buildCodexArgsOptions } from "@threads/utils/codexArgsProfiles";
 import { normalizeCodexArgsInput } from "@/utils/codexArgsInput";
 import {
@@ -1142,85 +1139,20 @@ function MainApp() {
     onNewTerminal,
     onCloseTerminal,
     terminalState,
-    ensureTerminalWithTitle,
-    restartTerminalSession,
-    requestTerminalFocus,
-  } = useTerminalController({
+    handleToggleTerminalWithFocus,
+    launchScriptState,
+    launchScriptsState,
+    handleWorktreeCreated,
+  } = useTerminalWorktreeOrchestration({
     activeWorkspaceId,
     activeWorkspace,
     terminalOpen,
-    onCloseTerminalPanel: closeTerminalPanel,
-    onDebug: addDebugEntry,
-  });
-
-  const ensureLaunchTerminal = useCallback(
-    (workspaceId: string) => ensureTerminalWithTitle(workspaceId, "launch", "Launch"),
-    [ensureTerminalWithTitle],
-  );
-
-  const openTerminalWithFocus = useCallback(() => {
-    if (!activeWorkspaceId) {
-      return;
-    }
-    requestTerminalFocus();
-    openTerminal();
-  }, [activeWorkspaceId, openTerminal, requestTerminalFocus]);
-
-  const handleToggleTerminalWithFocus = useCallback(() => {
-    if (!activeWorkspaceId) {
-      return;
-    }
-    if (!terminalOpen) {
-      requestTerminalFocus();
-    }
-    handleToggleTerminal();
-  }, [
-    activeWorkspaceId,
-    handleToggleTerminal,
-    requestTerminalFocus,
-    terminalOpen,
-  ]);
-
-  const launchScriptState = useWorkspaceLaunchScript({
-    activeWorkspace,
-    updateWorkspaceSettings,
-    openTerminal: openTerminalWithFocus,
-    ensureLaunchTerminal,
-    restartLaunchSession: restartTerminalSession,
-    terminalState,
-    activeTerminalId,
-  });
-
-  const launchScriptsState = useWorkspaceLaunchScripts({
-    activeWorkspace,
-    updateWorkspaceSettings,
-    openTerminal: openTerminalWithFocus,
-    ensureLaunchTerminal: (workspaceId, entry, title) => {
-      const label = entry.label?.trim() || entry.icon;
-      return ensureTerminalWithTitle(
-        workspaceId,
-        `launch:${entry.id}`,
-        title || `Launch ${label}`,
-      );
-    },
-    restartLaunchSession: restartTerminalSession,
-    terminalState,
-    activeTerminalId,
-  });
-
-  const worktreeSetupScriptState = useWorktreeSetupScript({
-    ensureTerminalWithTitle,
-    restartTerminalSession,
     openTerminal,
+    closeTerminalPanel,
+    handleToggleTerminal,
+    updateWorkspaceSettings,
     onDebug: addDebugEntry,
   });
-
-  const handleWorktreeCreated = useCallback(
-    async (worktree: WorkspaceInfo, _parentWorkspace?: WorkspaceInfo) => {
-      await worktreeSetupScriptState.maybeRunWorktreeSetupScript(worktree);
-    },
-    [worktreeSetupScriptState],
-  );
 
   const { exitDiffView, selectWorkspace, selectHome } = useWorkspaceSelection({
     workspaces,

@@ -88,7 +88,8 @@ Read when: planning medium/large architecture changes, remote-mode reliability w
   - Files: `src/App.tsx`, `src/features/app/orchestration/*`, `src/features/app/hooks/*`
   - Progress:
     - [x] Extracted prompt CRUD/reveal callbacks into `usePromptOrchestration`.
-    - [ ] Extract remaining large orchestration clusters (git panel + terminal/worktree flows).
+    - [x] Extracted terminal/worktree launch orchestration into `useTerminalWorktreeOrchestration`.
+    - [ ] Extract remaining large orchestration clusters (git panel flows).
   - Effort: `M`
   - Risk: `Med`
   - Depends on: `CP1`
