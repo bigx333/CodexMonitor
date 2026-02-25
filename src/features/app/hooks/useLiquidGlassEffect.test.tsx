@@ -52,6 +52,7 @@ describe("useLiquidGlassEffect", () => {
 
   it("clears effects when reduceTransparency is true", async () => {
     vi.mocked(isGlassSupported).mockResolvedValue(true);
+    setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
 
     renderHook(() => useLiquidGlassEffect({ reduceTransparency: true }));
 
@@ -63,6 +64,7 @@ describe("useLiquidGlassEffect", () => {
 
   it("applies liquid glass plugin if supported", async () => {
     vi.mocked(isGlassSupported).mockResolvedValue(true);
+    setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)");
 
     renderHook(() => useLiquidGlassEffect({ reduceTransparency: false }));
 
