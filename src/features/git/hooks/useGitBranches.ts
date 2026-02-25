@@ -12,6 +12,13 @@ type UseGitBranchesOptions = {
   onDebug?: (entry: DebugEntry) => void;
 };
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
 export function useGitBranches({ activeWorkspace, onDebug }: UseGitBranchesOptions) {
   const [branches, setBranches] = useState<BranchInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -56,10 +63,13 @@ export function useGitBranches({ activeWorkspace, onDebug }: UseGitBranchesOptio
         response ??
         [];
       const normalized: BranchInfo[] = Array.isArray(data)
-        ? data.map((item: any) => ({
-            name: String(item?.name ?? ""),
-            lastCommit: Number(item?.lastCommit ?? item?.last_commit ?? 0),
-          }))
+        ? data.map((entry) => {
+            const item = asRecord(entry);
+            return {
+              name: String(item?.name ?? ""),
+              lastCommit: Number(item?.lastCommit ?? item?.last_commit ?? 0),
+            };
+          })
         : [];
       setBranches(normalized.filter((branch) => branch.name));
       lastFetchedWorkspaceId.current = workspaceId;

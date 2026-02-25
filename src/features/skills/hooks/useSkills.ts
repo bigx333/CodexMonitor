@@ -9,6 +9,13 @@ type UseSkillsOptions = {
   onDebug?: (entry: DebugEntry) => void;
 };
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
 export function useSkills({ activeWorkspace, onDebug }: UseSkillsOptions) {
   const [skills, setSkills] = useState<SkillOption[]>([]);
   const lastFetchedWorkspaceId = useRef<string | null>(null);
@@ -54,14 +61,21 @@ export function useSkills({ activeWorkspace, onDebug }: UseSkillsOptions) {
         responseResult.skills ??
         responseRecord.skills ??
         (Array.isArray(dataBuckets)
-          ? dataBuckets.flatMap((bucket: any) => bucket?.skills ?? [])
+          ? dataBuckets.flatMap((bucket) => {
+              const bucketRecord = asRecord(bucket);
+              const nestedSkills = bucketRecord?.skills;
+              return Array.isArray(nestedSkills) ? nestedSkills : [];
+            })
           : []);
       const rawSkillsArray = Array.isArray(rawSkills) ? rawSkills : [];
-      const data: SkillOption[] = rawSkillsArray.map((item: any) => ({
-        name: String(item.name ?? ""),
-        path: String(item.path ?? ""),
-        description: item.description ? String(item.description) : undefined,
-      }));
+      const data: SkillOption[] = rawSkillsArray.map((entry) => {
+        const item = asRecord(entry);
+        return {
+          name: String(item?.name ?? ""),
+          path: String(item?.path ?? ""),
+          description: item?.description ? String(item.description) : undefined,
+        };
+      });
       setSkills(data);
       lastFetchedWorkspaceId.current = workspaceId;
     } catch (error) {

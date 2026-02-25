@@ -52,7 +52,7 @@ Read when: planning medium/large architecture changes, remote-mode reliability w
 
 ### TODO List
 
-- [ ] `R1.1` Type-hardening pass for frontend RPC boundaries (`invoke<any>` reduction). (in progress)
+- [x] `R1.1` Type-hardening pass for frontend RPC boundaries (`invoke<any>` reduction).
   - Deliverable: typed wrappers for highest-risk calls (`threads`, `turn`, `account`, `apps`, `prompts`).
   - Files: `src/services/tauri.ts`, `src/features/*/hooks/*`
   - Effort: `M`
@@ -76,8 +76,8 @@ Read when: planning medium/large architecture changes, remote-mode reliability w
 ### Checkpoint `CP1`
 
 - [x] `CP1.A` Event route table/decoder coverage includes all currently supported methods.
-- [ ] `CP1.B` `any` usage reduced on prioritized boundary paths.
-- [ ] `CP1.C` No behavior regression in thread/message event flows.
+- [x] `CP1.B` `any` usage reduced on prioritized boundary paths.
+- [x] `CP1.C` No behavior regression in thread/message event flows.
 
 ## Phase 2: Structural Refactors (P1)
 

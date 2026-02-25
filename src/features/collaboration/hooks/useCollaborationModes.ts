@@ -14,6 +14,13 @@ type UseCollaborationModesOptions = {
   onDebug?: (entry: DebugEntry) => void;
 };
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
 function pickWorkspaceDefaultModeId(modes: CollaborationModeOption[]): string | null {
   return (
     modes.find(
@@ -50,29 +57,30 @@ export function useCollaborationModes({
   const workspaceId = activeWorkspace?.id ?? null;
   const isConnected = Boolean(activeWorkspace?.connected);
 
-  const extractModeList = useCallback((response: any): any[] => {
+  const extractModeList = useCallback((response: unknown): unknown[] => {
     const candidates = [
-      response?.result?.data,
-      response?.result?.modes,
-      response?.result,
-      response?.data,
-      response?.modes,
+      asRecord(response)?.result,
       response,
     ];
     for (const candidate of candidates) {
       if (Array.isArray(candidate)) {
         return candidate;
       }
-      if (candidate && typeof candidate === "object") {
-        const nested = (candidate as any).data ?? (candidate as any).modes;
+      const candidateRecord = asRecord(candidate);
+      if (!candidateRecord) {
+        continue;
+      }
+      const nestedCandidates = [
+        candidateRecord.data,
+        candidateRecord.modes,
+        asRecord(candidateRecord.data)?.data,
+        asRecord(candidateRecord.data)?.modes,
+        asRecord(candidateRecord.modes)?.data,
+        asRecord(candidateRecord.modes)?.modes,
+      ];
+      for (const nested of nestedCandidates) {
         if (Array.isArray(nested)) {
           return nested;
-        }
-        if (nested && typeof nested === "object") {
-          const deep = (nested as any).data ?? (nested as any).modes;
-          if (Array.isArray(deep)) {
-            return deep;
-          }
         }
       }
     }
@@ -110,8 +118,9 @@ export function useCollaborationModes({
       });
       const rawData = extractModeList(response);
       const data: CollaborationModeOption[] = rawData
-        .map((item: any) => {
-          if (!item || typeof item !== "object") {
+        .map((entry) => {
+          const item = asRecord(entry);
+          if (!item) {
             return null;
           }
           const modeId = String(item.mode ?? item.name ?? "").trim();
@@ -119,18 +128,13 @@ export function useCollaborationModes({
             return null;
           }
 
-          const settings =
-            item.settings && typeof item.settings === "object"
-              ? item.settings
-              : {
-                  model: item.model ?? null,
-                  reasoning_effort:
-                    item.reasoning_effort ?? item.reasoningEffort ?? null,
-                  developer_instructions:
-                    item.developer_instructions ??
-                    item.developerInstructions ??
-                    null,
-                };
+          const settingsCandidate = asRecord(item.settings);
+          const settings = settingsCandidate ?? {
+            model: item.model ?? null,
+            reasoning_effort: item.reasoning_effort ?? item.reasoningEffort ?? null,
+            developer_instructions:
+              item.developer_instructions ?? item.developerInstructions ?? null,
+          };
 
           const model = String(settings.model ?? "");
           const reasoningEffort = settings.reasoning_effort ?? null;
@@ -152,7 +156,7 @@ export function useCollaborationModes({
             developerInstructions: developerInstructions
               ? String(developerInstructions)
               : null,
-            value: item as Record<string, unknown>,
+            value: item,
           };
           return option;
         })

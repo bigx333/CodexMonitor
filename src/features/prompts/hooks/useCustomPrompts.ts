@@ -15,6 +15,28 @@ type UseCustomPromptsOptions = {
   onDebug?: (entry: DebugEntry) => void;
 };
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function extractPromptEntries(response: unknown): unknown[] {
+  if (Array.isArray(response)) {
+    return response;
+  }
+  const responseRecord = asRecord(response);
+  const responseResult = asRecord(responseRecord?.result);
+  const candidates = [responseRecord?.prompts, responseResult?.prompts, responseResult];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) {
+      return candidate;
+    }
+  }
+  return [];
+}
+
 export function useCustomPrompts({ activeWorkspace, onDebug }: UseCustomPromptsOptions) {
   const [prompts, setPrompts] = useState<CustomPromptOption[]>([]);
   const lastFetchedWorkspaceId = useRef<string | null>(null);
@@ -61,36 +83,27 @@ export function useCustomPrompts({ activeWorkspace, onDebug }: UseCustomPromptsO
         label: "prompts/list response",
         payload: response,
       });
-      const responsePayload = response as any;
-      let rawPrompts: any[] = [];
-      if (Array.isArray(response)) {
-        rawPrompts = response;
-      } else if (Array.isArray(responsePayload?.prompts)) {
-        rawPrompts = responsePayload.prompts;
-      } else if (Array.isArray(responsePayload?.result?.prompts)) {
-        rawPrompts = responsePayload.result.prompts;
-      } else if (Array.isArray(responsePayload?.result)) {
-        rawPrompts = responsePayload.result;
-      }
-      const data: CustomPromptOption[] = rawPrompts.map((item: any) => {
+      const rawPrompts = extractPromptEntries(response);
+      const data: CustomPromptOption[] = rawPrompts.map((entry) => {
+        const item = asRecord(entry);
         let argumentHint: string | undefined;
-        if (item.argumentHint) {
+        if (item?.argumentHint) {
           argumentHint = String(item.argumentHint);
-        } else if (item.argument_hint) {
+        } else if (item?.argument_hint) {
           argumentHint = String(item.argument_hint);
         }
 
         let scope: CustomPromptOption["scope"];
-        if (item.scope === "workspace" || item.scope === "global") {
+        if (item?.scope === "workspace" || item?.scope === "global") {
           scope = item.scope;
         }
 
         return {
-          name: String(item.name ?? ""),
-          path: String(item.path ?? ""),
-          description: item.description ? String(item.description) : undefined,
+          name: String(item?.name ?? ""),
+          path: String(item?.path ?? ""),
+          description: item?.description ? String(item.description) : undefined,
           argumentHint,
-          content: String(item.content ?? ""),
+          content: String(item?.content ?? ""),
           scope,
         };
       });

@@ -11,31 +11,44 @@ type UseAppsOptions = {
   onDebug?: (entry: DebugEntry) => void;
 };
 
-function normalizeAppsResponse(response: any): AppOption[] {
-  const data =
-    response?.result?.data ??
-    response?.data ??
-    [];
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function asStringOrNull(value: unknown): string | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  return String(value);
+}
+
+function normalizeAppsResponse(response: unknown): AppOption[] {
+  const responseRecord = asRecord(response);
+  const responseResult = asRecord(responseRecord?.result);
+  const data = responseResult?.data ?? responseRecord?.data ?? [];
   if (!Array.isArray(data)) {
     return [];
   }
   return data
-    .map((item: any) => ({
-      id: String(item?.id ?? ""),
-      name: String(item?.name ?? ""),
-      description: item?.description ? String(item.description) : undefined,
-      isAccessible: Boolean(item?.isAccessible ?? item?.is_accessible ?? false),
-      installUrl: item?.installUrl
-        ? String(item.installUrl)
-        : item?.install_url
-          ? String(item.install_url)
-          : null,
-      distributionChannel: item?.distributionChannel
-        ? String(item.distributionChannel)
-        : item?.distribution_channel
-          ? String(item.distribution_channel)
-          : null,
-    }))
+    .map((entry) => {
+      const item = asRecord(entry);
+      const installUrl = asStringOrNull(item?.installUrl ?? item?.install_url);
+      const distributionChannel = asStringOrNull(
+        item?.distributionChannel ?? item?.distribution_channel,
+      );
+
+      return {
+        id: String(item?.id ?? ""),
+        name: String(item?.name ?? ""),
+        description: item?.description ? String(item.description) : undefined,
+        isAccessible: Boolean(item?.isAccessible ?? item?.is_accessible ?? false),
+        installUrl,
+        distributionChannel,
+      };
+    })
     .sort((a, b) => {
       if (a.isAccessible !== b.isAccessible) {
         return a.isAccessible ? -1 : 1;
