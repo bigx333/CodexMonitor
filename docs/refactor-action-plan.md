@@ -104,7 +104,7 @@ Read when: planning medium/large architecture changes, remote-mode reliability w
   - Risk: `Med`
   - Depends on: `CP0`
 
-- [ ] `R2.4` Split oversized tests into domain suites.
+- [ ] `R2.4` Split oversized tests into domain suites. (in progress)
   - Deliverable: smaller files, shared fixtures, easier triage.
   - Files: `src/features/settings/components/SettingsView.test.tsx`, `src/features/threads/hooks/useThreadActions.test.tsx`, `src/features/threads/hooks/useThreads.integration.test.tsx`
   - Effort: `S-M`
