@@ -79,6 +79,33 @@ fn resolve_spawned_thread_workspace(
     thread_workspace.get(&parent_thread_id).cloned()
 }
 
+fn extract_thread_cwd(value: &Value) -> Option<String> {
+    fn extract_from_container(container: Option<&Value>) -> Option<String> {
+        container
+            .and_then(|container| container.get("thread"))
+            .and_then(|thread| thread.get("cwd"))
+            .or_else(|| container.and_then(|container| container.get("cwd")))
+            .and_then(|cwd| cwd.as_str())
+            .map(|cwd| cwd.to_string())
+    }
+
+    extract_from_container(value.get("params"))
+        .or_else(|| extract_from_container(value.get("result")))
+}
+
+fn resolve_started_thread_workspace(
+    child_thread_id: &str,
+    value: &Value,
+    thread_workspace: &HashMap<String, String>,
+    workspace_roots: &HashMap<String, String>,
+) -> Option<String> {
+    resolve_spawned_thread_workspace(child_thread_id, value, thread_workspace).or_else(|| {
+        extract_thread_cwd(value)
+            .as_deref()
+            .and_then(|cwd| resolve_workspace_for_cwd(cwd, workspace_roots))
+    })
+}
+
 fn extract_turn_id(value: &Value) -> Option<String> {
     fn extract_from_container(container: Option<&Value>) -> Option<String> {
         let container = container?;
@@ -915,11 +942,17 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
             }
             if method_name.as_deref() == Some("thread/started") {
                 if let Some(ref child_thread_id) = thread_id {
-                    let parent_workspace_id = {
-                        let thread_workspace = session_clone.thread_workspace.lock().await;
-                        resolve_spawned_thread_workspace(child_thread_id, &value, &thread_workspace)
+                    let thread_workspace = session_clone.thread_workspace.lock().await.clone();
+                    let workspace_roots = session_clone.workspace_roots.lock().await.clone();
+                    let resolved_workspace_id = {
+                        resolve_started_thread_workspace(
+                            child_thread_id,
+                            &value,
+                            &thread_workspace,
+                            &workspace_roots,
+                        )
                     };
-                    if let Some(parent_workspace_id) = parent_workspace_id {
+                    if let Some(parent_workspace_id) = resolved_workspace_id {
                         session_clone
                             .thread_workspace
                             .lock()
@@ -1177,10 +1210,10 @@ pub(crate) async fn spawn_workspace_session<E: EventSink>(
 mod tests {
     use super::{
         build_initialize_params, can_retry_turn_start_error, extract_response_error_message,
-        extract_thread_entries_from_thread_list_result, extract_thread_id,
+        extract_thread_cwd, extract_thread_entries_from_thread_list_result, extract_thread_id,
         extract_thread_spawn_parent_thread_id, extract_turn_error_details, extract_turn_id,
-        normalize_root_path, resolve_spawned_thread_workspace, resolve_workspace_for_cwd,
-        set_turn_error_will_retry, TurnErrorDetails,
+        normalize_root_path, resolve_spawned_thread_workspace, resolve_started_thread_workspace,
+        resolve_workspace_for_cwd, set_turn_error_will_retry, TurnErrorDetails,
     };
     use std::collections::HashMap;
     use serde_json::json;
@@ -1265,6 +1298,46 @@ mod tests {
         assert_eq!(
             resolve_spawned_thread_workspace("thread-child", &value, &thread_workspace),
             Some("ws-2".to_string())
+        );
+    }
+
+    #[test]
+    fn extract_thread_cwd_reads_thread_started_payload() {
+        let value = json!({
+            "method": "thread/started",
+            "params": {
+                "thread": {
+                    "id": "thread-child",
+                    "cwd": "/tmp/project-b"
+                }
+            }
+        });
+        assert_eq!(extract_thread_cwd(&value), Some("/tmp/project-b".to_string()));
+    }
+
+    #[test]
+    fn resolve_started_thread_workspace_falls_back_to_cwd_when_parent_missing() {
+        let value = json!({
+            "method": "thread/started",
+            "params": {
+                "thread": {
+                    "id": "thread-child",
+                    "cwd": "/tmp/project-b/subdir",
+                    "source": {
+                        "thread_spawn": {
+                            "parent_thread_id": "missing-parent"
+                        }
+                    }
+                }
+            }
+        });
+        let thread_workspace = HashMap::new();
+        let mut workspace_roots = HashMap::new();
+        workspace_roots.insert("ws-a".to_string(), normalize_root_path("/tmp/project-a"));
+        workspace_roots.insert("ws-b".to_string(), normalize_root_path("/tmp/project-b"));
+        assert_eq!(
+            resolve_started_thread_workspace("thread-child", &value, &thread_workspace, &workspace_roots),
+            Some("ws-b".to_string())
         );
     }
 
